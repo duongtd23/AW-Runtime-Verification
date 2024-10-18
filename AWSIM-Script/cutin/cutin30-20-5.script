@@ -1,0 +1,14 @@
+spawnPos = "TrafficLane.112";
+goal = "TrafficLane.111" at 180;
+npcspeed = 5.556;
+route1 = [
+    "TrafficLane.112" max-velocity(npcspeed),
+    cut-in(_, npcspeed, 1.4, 6),
+    "TrafficLane.111" max-velocity(npcspeed)
+];
+
+npc1 = NPC("hatchback", _, goal, route1, [acceleration(20)]);
+
+ego = Ego(spawnPos left 0, "TrafficLane.111" at 150, [max-velocity(8.333)]);
+
+run(ego, [npc1], [saving-timeout(60)]);

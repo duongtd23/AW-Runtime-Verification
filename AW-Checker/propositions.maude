@@ -1,0 +1,693 @@
+load objects.maude 
+
+fmod ENVIRONMENT is
+  pr VECTOR3 .
+  --- parameters
+  op autoModeReadyTime : -> FloatOrInt .
+  ops cameraScreenWidth cameraScreenHeight : -> Int .
+  op startTime : -> FloatOrInt .
+  op fixedTimestep : -> Nat . --- in milliseconds
+  --- bounds of a vehicle
+  op boundsCenter : String -> Vector3 .
+  op boundsExtent : String -> Vector3 .
+  --- cut-in, cut-out, deceleration info
+  ops cutinNPC cutoutNPC decelerationNPC : -> String .
+  ops cutinStartTime cutoutStartTime decelerationStartTime : -> FloatOrInt .
+
+  vars STR : String .
+  vars C E : Vector3 .
+  ops boundsToFront boundsToBack : String -> FloatOrInt .
+  ceq boundsToFront(STR) = z(C) + z(E)
+    if C := boundsCenter(STR) /\
+       E := boundsExtent(STR) .
+  ceq boundsToBack(STR) = z(E) - z(C)
+    if C := boundsCenter(STR) /\
+       E := boundsExtent(STR) .
+  
+  op infiniteF : -> Float .
+  eq infiniteF = 1000000000.0 .
+endfm
+
+mod AWSTATE is 
+  pr OBJECT-SET .
+  pr ENVIRONMENT + FLOAT-AND-NULL + VECTOR3-AND-NULL .
+  sort AWState .
+  op _#{_} : FloatOrInt Set{Object} -> AWState [ctor] .
+
+  op init : -> AWState .
+
+  op timeStamp : AWState -> FloatOrInt .
+  op gtVehicle : AWState String -> Set{Object} .
+  op gtPedestrian : AWState String -> Set{Object} .
+  op gtPosition : AWState String -> Maybe{Vector3} .
+  op gtCenterPosition : AWState String -> Maybe{Vector3} .
+  op gtLinearVel : AWState String -> Maybe{Vector3} .
+  op gtSpeed : AWState String -> Maybe{FloatOrInt} .
+  op gtRectOnCamera : AWState String -> Rect .
+  op gtYawAngleOrient : AWState String -> Maybe{FloatOrInt} .
+  op gtAccel : AWState String -> Maybe{Vector3} .
+  op gtAccelScalar : AWState String -> Maybe{FloatOrInt} .
+  op closestDetectedObject : AWState String -> Set{Object} .
+
+  --- collide
+  op collision : AWState String String -> Bool .
+  --- ground truth position difference
+  op pos-diff : AWState String String -> Maybe{Vector3} .
+  --- time to collision
+  op ttc : AWState String -> Float .
+  --- time headway
+  op thw : AWState String -> Float .
+
+  --- perceived position, rotation
+  op perpPosition : AWState String -> Maybe{Vector3} .
+  op perpYawAngleOrient : AWState String -> Maybe{FloatOrInt} .
+  op perpLinearVel : AWState String -> Maybe{Vector3} .
+  op perpSpeed : AWState String -> Maybe{FloatOrInt} .
+  op perpShape : AWState String -> Maybe{Vector3} .
+
+  --- difference between ground truth position and perceived position
+  op perp-pos-diff : AWState String -> Maybe{Vector3} .
+  --- rotation, yaw component
+  op perp-rota-diff : AWState String -> Maybe{FloatOrInt} .
+  op perp-speed-diff : AWState String -> Maybe{FloatOrInt} .
+  op perp-shapelength-diff : AWState String -> Maybe{FloatOrInt} .
+  op perp-shapewidth-diff : AWState String -> Maybe{FloatOrInt} .
+  --- best IOU ratio for an NPC
+  op best-IOU-ratio : AWState String -> Float .
+
+  var OBJs : Set{Object} .
+  vars POSE POSE2 : Pose .
+  vars TWIST ACCEL TWIST2 ACCEL2 : Twist .
+  vars X Y Z D DLA DLO DLO2 SPEED SPEED2 DIS DIS0 DIS2 X2 T T2 Y2 Z2 PROB W H W2 H2 : FloatOrInt .
+  vars CX CY CZ EX EY EZ CX2 CY2 CZ2 EX2 EY2 EZ2 ANGLE ANGLE2 SLA2 SLO SLO2 : FloatOrInt .
+  vars F F2 IOU : Float .
+  vars V V2 V3 V4 P P2 : Vector3 .
+  vars VERTICES VERTICES2 : List{Vector2} .
+  vars STR STR2 : String .
+  vars AWST : AWState .
+  vars UUID : Uuid .
+  vars CLS : Set{Class} .
+  vars POBJ POBJ2 : PObject .
+  vars BBPOBJ BBOBJ2 : BBPObject .
+  vars GTOBJ : GTObject .
+  vars PEDES : Pedestrian .
+  vars N N2 : Nat .
+  vars RECT RECT2 : Rect .
+  vars ORI : Vector2 .
+
+  eq startTime = timeStamp(init) .
+  eq timeStamp(T # {OBJs}) = T .
+
+  ceq gtVehicle(T # {GTOBJ, OBJs},  STR) = GTOBJ
+    if name(GTOBJ) == STR .
+  ceq gtPedestrian(T # {PEDES, OBJs},  STR) = PEDES
+    if name(PEDES) == STR .
+
+  --- vehicle
+  ceq gtPosition(T # {GTOBJ, OBJs},  STR) = gtPosition(GTOBJ)
+    if name(GTOBJ) == STR .
+  --- pedestrian
+  ceq gtPosition(T # {PEDES, OBJs},  STR) = pedesPosition(PEDES)
+    if pedesName(PEDES) == STR .
+
+  --- vehicle
+  ceq gtCenterPosition(AWST,  STR) = X 0 Z
+    if gtVehicle(AWST, STR) =/= empty /\
+       P := gtPosition(AWST, STR) /\
+       ANGLE := gtYawAngleOrient(AWST, STR) /\
+       V := boundsCenter(STR) /\
+       vector2(X,Z) := centerPoint(P, ANGLE, V) .
+  --- pedestrian
+  ceq gtCenterPosition(AWST,  STR) = x(P) 0 z(P)
+    if gtVehicle(AWST, STR) == empty /\
+       P := gtPosition(AWST, STR) .
+
+  ceq gtLinearVel(AWST, STR) = gtLinearVel(GTOBJ)
+    if GTOBJ := gtVehicle(AWST, STR) .
+  
+  ceq gtSpeed(AWST,STR) = magnitudeIgnoreY(V) 
+    if V := gtLinearVel(AWST,STR) .
+  ceq gtSpeed(AWST, STR) = pedesSpeed(PEDES)
+    if PEDES := gtPedestrian(AWST,STR) .
+
+  ceq gtRectOnCamera(AWST, STR) = gtRectOnCamera(GTOBJ)
+    if GTOBJ := gtVehicle(AWST, STR) .
+  ceq gtRectOnCamera(AWST, STR) = pedesRectOnCamera(PEDES)
+    if PEDES := gtPedestrian(AWST, STR) .
+
+  ceq gtYawAngleOrient(AWST, STR) = gtYawAngleOrient(GTOBJ)
+    if GTOBJ := gtVehicle(AWST, STR) .
+  ceq gtYawAngleOrient(AWST, STR) = pedesYawAngleOrient(PEDES)
+    if PEDES := gtPedestrian(AWST, STR) .
+
+  ceq gtAccel(AWST, STR) = gtAccel(GTOBJ)
+    if GTOBJ := gtVehicle(AWST, STR) .
+  ceq gtAccelScalar(AWST, STR) = dot(normalize(V), V2)
+    if V := gtLinearVel(AWST, STR) /\
+      V2 := gtAccel(AWST, STR) .
+  ceq gtAccelScalar(AWST, STR) = 0
+    if PEDES := gtPedestrian(AWST, STR) .
+
+  ceq closestDetectedObject(T # {OBJs},  STR) = POBJ
+    if P := gtCenterPosition(T # {OBJs},  STR) /\
+      POBJ := closestDetectedVeh(P, OBJs) .
+  
+  eq gtVehicle(AWST, STR) = empty [owise] .
+  eq gtPedestrian(AWST, STR) = empty [owise] .
+  eq gtPosition(AWST, STR) = nullVector3 [owise] .
+  eq gtCenterPosition(AWST, STR) = nullVector3 [owise] .
+  eq gtLinearVel(AWST, STR) = nullVector3 [owise] .
+  eq gtRectOnCamera(AWST, STR) = DUMMY-RECT [owise] .
+  eq gtYawAngleOrient(AWST, STR) = nullFloat [owise] .
+  eq gtAccel(AWST, STR) = nullVector3 [owise] .
+  eq gtAccelScalar(AWST, STR) = nullFloat [owise] .
+  eq closestDetectedObject(AWST, STR) = empty [owise] .
+
+  ceq collision(AWST, STR, STR2) =
+      collision(VERTICES, VERTICES2)
+    if P := gtPosition(AWST, STR) /\
+       ANGLE := gtYawAngleOrient(AWST, STR) /\
+       V := boundsCenter(STR) /\
+       V2 := boundsExtent(STR) /\
+       VERTICES := 2DShapeRotatedVertices(P, ANGLE, V, V2) /\
+       P2 := gtPosition(AWST, STR2) /\
+       ANGLE2 := gtYawAngleOrient(AWST, STR2) /\
+       V3 := boundsCenter(STR2) /\
+       V4 := boundsExtent(STR2) /\
+       VERTICES2 := 2DShapeRotatedVertices(P2, ANGLE2, V3, V4) .
+
+  ceq pos-diff(AWST, STR, STR2) = (P - P2)
+    if P  := gtCenterPosition(AWST,STR) /\
+       P2 := gtCenterPosition(AWST,STR2) .
+
+  ceq perpPosition(AWST, STR) = perpPosition(POBJ)
+    if POBJ := closestDetectedObject(AWST, STR) .
+  ceq perpYawAngleOrient(AWST, STR) = perpYawAngleOrient(POBJ)
+    if POBJ := closestDetectedObject(AWST, STR) .
+  ceq perpLinearVel(AWST, STR) = perpLinearVel(POBJ)
+    if POBJ := closestDetectedObject(AWST, STR) .
+  ceq perpSpeed(AWST, STR) = magnitudeIgnoreY(V)
+    if V := perpLinearVel(AWST, STR) .
+  ceq perpShape(AWST, STR) = perpShape(POBJ)
+    if POBJ := closestDetectedObject(AWST, STR) .
+
+  ceq perp-pos-diff(AWST, STR) = (P - (x(P2) 0 z(P2)))
+    if P := gtCenterPosition(AWST, STR) /\
+      P2 := perpPosition(AWST, STR) .
+
+  ceq perp-rota-diff(AWST, STR) = abs(ANGLE - ANGLE2)
+    if POBJ := closestDetectedObject(AWST, STR) /\
+      ANGLE := gtYawAngleOrient(AWST, STR) /\
+      ANGLE2 := perpYawAngleOrient(POBJ) .
+
+  ceq perp-speed-diff(AWST, STR) = abs(X - X2)
+    if X := gtSpeed(AWST, STR) /\
+      X2 := perpSpeed(AWST, STR) .
+
+  ceq perp-shapelength-diff(AWST, STR) = abs(2.0 * Z - Z2)
+    if X Y Z := boundsExtent(STR) /\
+      X2 Y2 Z2 := perpShape(AWST, STR) .
+
+  ceq perp-shapewidth-diff(AWST, STR) = abs(2.0 * X - X2)
+    if X Y Z := boundsExtent(STR) /\
+      X2 Y2 Z2 := perpShape(AWST, STR) .
+
+  ceq best-IOU-ratio(AWST, STR) = bestIOURatio(RECT, OBJs)
+    if RECT := gtRectOnCamera(AWST, STR) /\
+      RECT =/= DUMMY-RECT /\
+      T # {OBJs} := AWST .
+
+*** TTC ***
+  --- TTC is considered solely with vehicles go in the same direction and Ego goes straight
+  --- With other vehicles, it simply return infinte
+  op angleDiffThreshold : -> Float .
+  eq angleDiffThreshold = 0.5 .
+
+  ceq ttc(AWST, STR) = 0
+    if collision(AWST, "ego", STR) .
+  ceq ttc(AWST, STR) = infiniteF
+    if not collision(AWST, "ego", STR) /\
+       ANGLE := gtYawAngleOrient(AWST, "ego") /\
+       ANGLE2 := gtYawAngleOrient(AWST, STR) /\
+       abs(ANGLE - ANGLE2) >= 90.0 .
+
+  --- 1st arg: signed distance from ego to NPC
+  --- 2nd arg: NPC name
+  --- 3rd arg: NPC longtitude speed
+  --- 4th arg: Ego longtitude speed
+  op ttcLongtitude : FloatOrInt String FloatOrInt FloatOrInt -> FloatOrInt .
+  eq ttcLongtitude(DIS, STR, SLO, SLO2) =
+    if DIS > 0  --- ego behind npc 
+    then 
+      if SLO <= SLO2
+      then infiniteF
+      else max$(DIS - boundsToFront("ego") - boundsToBack(STR), 0) / (SLO - SLO2)
+      fi
+    else   --- npc behind ego 
+      if SLO2 <= SLO
+      then infiniteF
+      else max$(-1 * DIS - boundsToFront(STR) - boundsToBack("ego"), 0) / (SLO2 - SLO)
+      fi
+    fi .
+  
+  --- 1. NPC and Ego lateral overlap. 
+  ---    TTC is simply calculated based on longitude positions and velocity.
+  ---    It means we ignore the case then longitude positions collide but there is a lateral distance
+  ceq ttc(AWST, STR) = ttcLongtitude(DLO, STR, SLO, SLO2)
+    if not collision(AWST, "ego", STR) /\
+       ANGLE := gtYawAngleOrient(AWST, "ego") /\
+       ANGLE2 := gtYawAngleOrient(AWST, STR) /\
+       abs(ANGLE - ANGLE2) < 90.0 /\
+       ORI := vector2(cos(degreeToRadian(90 - ANGLE)), sin(degreeToRadian(90 - ANGLE))) /\
+       P  := gtPosition(AWST, "ego") /\
+       P2 := gtPosition(AWST, STR) /\
+       DLA := lateralComp(vector3To2(P2 - P), ORI) /\
+       DLA <= x(boundsExtent("ego")) + x(boundsExtent(STR)) /\
+       V := gtLinearVel(AWST, "ego") /\
+       V2 := gtLinearVel(AWST, STR) /\
+       DLO := longitudeComp(vector3To2(P2 - P), ORI) /\
+       SLO := longitudeComp(vector3To2(V), ORI) /\
+       SLO2 := longitudeComp(vector3To2(V2), ORI) .
+
+  --- 2. there is a lateral distance between NPC and Ego.
+  --- 2.1. NPC goes straight -> never collide
+  ceq ttc(AWST, STR) = infiniteF
+    if not collision(AWST, "ego", STR) /\
+       ANGLE := gtYawAngleOrient(AWST, "ego") /\
+       ANGLE2 := gtYawAngleOrient(AWST, STR) /\
+       abs(ANGLE - ANGLE2) <= angleDiffThreshold /\
+       ORI := vector2(cos(degreeToRadian(90 - ANGLE)), sin(degreeToRadian(90 - ANGLE))) /\
+       P  := gtPosition(AWST, "ego") /\
+       P2 := gtPosition(AWST, STR) /\
+       DLA := lateralComp(vector3To2(P2 - P), ORI) /\
+       DLA > x(boundsExtent("ego")) + x(boundsExtent(STR)) .
+
+  --- 2.2. NPC has lateral velocity (cut-in, cut-out). 
+  ---      At the moment when NPC's side touches the Ego's side, there are three cases:
+  --- 2.2.1. Ego front behind NPC back
+  --- 2.2.2. NPC front behind Ego back
+  --- 2.2.3. other (overlap)
+  ceq ttc(AWST, STR) = 
+      if DIS2 > boundsToFront("ego") + boundsToBack(STR)            --- 2.2.1
+      then T + ttcLongtitude(DIS2, STR, SLO, SLO2)
+      else
+        if DIS2 < -1 * (boundsToFront(STR) + boundsToBack("ego"))   --- 2.2.2
+        then T + ttcLongtitude(DIS2, STR, SLO, SLO2)
+        else T                                                      --- 2.2.3
+        fi
+      fi
+    if not collision(AWST, "ego", STR) /\
+       ANGLE := gtYawAngleOrient(AWST, "ego") /\
+       ANGLE2 := gtYawAngleOrient(AWST, STR) /\
+       abs(ANGLE - ANGLE2) > angleDiffThreshold /\
+       abs(ANGLE - ANGLE2) < 90.0 /\
+       ORI := vector2(cos(degreeToRadian(90 - ANGLE)), sin(degreeToRadian(90 - ANGLE))) /\
+       P  := gtPosition(AWST, "ego") /\
+       P2 := gtPosition(AWST, STR) /\
+       DLA := lateralComp(vector3To2(P2 - P), ORI) /\
+       DLA > x(boundsExtent("ego")) + x(boundsExtent(STR)) /\
+       V := gtLinearVel(AWST, "ego") /\
+       V2 := gtLinearVel(AWST, STR) /\
+       SLA2 := lateralComp(vector3To2(V2), ORI) /\
+       T := DLA / SLA2 /\
+       SLO := longitudeComp(vector3To2(V), ORI) /\
+       SLO2 := longitudeComp(vector3To2(V2), ORI) /\
+       DLO := SLO * T /\
+       DLO2 := SLO2 * T /\
+       DIS0 := longitudeComp(vector3To2(P2 - P), ORI) /\
+       DIS2 := (DIS0 + DLO2) - DLO .
+
+  ceq thw(AWST, STR) =
+      if X == 0.0
+      then infiniteF
+      else magnitudeIgnoreY(P) / X 
+      fi
+    if P := pos-diff(AWST, STR, "ego") /\
+       X := gtSpeed(AWST, "ego") . 
+
+  eq collision(AWST, STR, STR2) = false [owise] .
+  eq pos-diff(AWST, STR, STR2) = nullVector3 [owise] .
+  eq ttc(AWST, STR) = infiniteF [owise] .
+  eq thw(AWST, STR) = infiniteF [owise] .
+
+  eq perpPosition(AWST, STR) = nullVector3 [owise] .
+  eq perpYawAngleOrient(AWST, STR) = nullFloat [owise] .
+  eq perpLinearVel(AWST, STR) = nullVector3 [owise] .
+  eq perpSpeed(AWST, STR) = nullFloat [owise] .
+  eq perpShape(AWST, STR) = nullVector3 [owise] .
+  eq perp-pos-diff(AWST, STR) = nullVector3 [owise] .
+  eq perp-rota-diff(AWST, STR) = nullFloat [owise] .
+
+  --- if the ground truth trace does not have information of npc bounding box,
+  --- e.g., when the npc is outside of the camera
+  ceq best-IOU-ratio(AWST, STR) = 1.0
+    if DUMMY-RECT == gtRectOnCamera(AWST, STR) .
+  eq best-IOU-ratio(AWST, STR) = 0.0 [owise] .
+
+***(
+ * inner computation
+)
+  --- given a position, find nearest detected object
+  --- returns single object if it exists, otherwise, empty set
+  op closestDetectedVeh : Vector3 Set{Object} -> Set{Object} .
+  op closestDetectedVeh : Vector3 Set{Object} Float PObject -> Set{Object} .
+  ceq closestDetectedVeh(P,  (POBJ, OBJs)) =
+      closestDetectedVeh(P, OBJs, distanceIgnoreY(P, perpPosition(POBJ)), POBJ) 
+    if isVehicleClass(class(POBJ)) .
+  eq closestDetectedVeh(P, OBJs) = empty [owise] .
+  ceq closestDetectedVeh(P,  (POBJ2, OBJs),  F, POBJ) = 
+      if F2 < F and isVehicleClass(class(POBJ2))
+      then closestDetectedVeh(P, OBJs, F2, POBJ2)
+      else closestDetectedVeh(P, OBJs, F, POBJ)
+      fi 
+    if F2 := distanceIgnoreY(P, perpPosition(POBJ2)) .
+  eq closestDetectedVeh(P, OBJs, F, POBJ) = POBJ [owise] .
+
+  --- given a 2D bounding box, find the detected bounding box with best IOU ratio
+  --- returns single object if it exists, otherwise, empty set
+  op bestIOURatioDetectedVeh : Rect Set{Object} -> Set{Object} .
+  op bestIOURatioDetectedVeh : Rect Set{Object} Float BBPObject -> Set{Object} .
+  ceq bestIOURatioDetectedVeh(RECT,  (BBPOBJ, OBJs)) =
+      bestIOURatioDetectedVeh(RECT, OBJs, IOU, BBPOBJ)
+    if isVehicleClass(2DClass(BBPOBJ)) /\
+      IOU := IOURatio(RECT, 2DRect(BBPOBJ)) .
+  eq bestIOURatioDetectedVeh(RECT, OBJs) = empty [owise] .
+  ceq bestIOURatioDetectedVeh(RECT,  (BBOBJ2, OBJs),  F, BBPOBJ) = 
+      if IOU > F and isVehicleClass(2DClass(BBOBJ2))
+      then bestIOURatioDetectedVeh(RECT, OBJs, IOU, BBOBJ2)
+      else bestIOURatioDetectedVeh(RECT, OBJs, F, BBPOBJ)
+      fi 
+    if IOU := IOURatio(RECT, 2DRect(BBOBJ2)) .
+  eq bestIOURatioDetectedVeh(RECT, OBJs, F, BBPOBJ) = BBPOBJ [owise] .
+
+  op bestIOURatio : Rect Set{Object} -> Float .
+  op bestIOURatio : Rect Set{Object} Float -> Float .
+  eq bestIOURatio(RECT, OBJs) = bestIOURatio(RECT, OBJs, 0.0) .
+  ceq bestIOURatio(RECT,  (BBOBJ2, OBJs),  F) = 
+      if IOU > F and isVehicleClass(2DClass(BBOBJ2))
+      then bestIOURatio(RECT, OBJs, IOU)
+      else bestIOURatio(RECT, OBJs, F)
+      fi 
+    if IOU := IOURatio(RECT, 2DRect(BBOBJ2)) .
+  eq bestIOURatio(RECT, OBJs, F) = F [owise] .
+
+***(
+ * compute center point, 4 corner vertices of Car 2D shape
+)
+  ---              root position  yaw angle   bound center
+  op centerPoint : Vector3        FloatOrInt  Vector3      -> Vector2 .
+  eq centerPoint(P, ANGLE, V) = 
+      rotatePoint(vector2(0,0),
+                  ANGLE,
+                  vector2(x(V), z(V))) +
+      vector2(x(P), z(P)) .
+
+  ---                   root position  yaw angle   bound center  bound extent
+  op frontCenterPoint : Vector3        FloatOrInt  Vector3       Vector3      -> Vector2 .
+  eq frontCenterPoint(P, ANGLE, V, V2) = 
+      rotatePoint(vector2(0,0),
+                  ANGLE,
+                  vector2(x(V), z(V) + z(V2))) +
+      vector2(x(P), z(P)) .
+  
+  ---                  root position  yaw angle   bound center  bound extent
+  op frontLeftPoint  : Vector3        FloatOrInt  Vector3       Vector3      -> Vector2 .
+  op frontRightPoint : Vector3        FloatOrInt  Vector3       Vector3      -> Vector2 .
+  op backLeftPoint   : Vector3        FloatOrInt  Vector3       Vector3      -> Vector2 .
+  op backRightPoint  : Vector3        FloatOrInt  Vector3       Vector3      -> Vector2 .
+  eq frontLeftPoint(P, ANGLE, V, V2) = 
+      rotatePoint(vector2(0,0),
+                  ANGLE,
+                  vector2(x(V) - x(V2), z(V) + z(V2))) +
+      vector2(x(P), z(P)) .
+  eq frontRightPoint(P, ANGLE, V, V2) = 
+      rotatePoint(vector2(0,0),
+                  ANGLE,
+                  vector2(x(V) + x(V2), z(V) + z(V2))) +
+      vector2(x(P), z(P)) .
+  eq backLeftPoint(P, ANGLE, V, V2) = 
+      rotatePoint(vector2(0,0),
+                  ANGLE,
+                  vector2(x(V) - x(V2), z(V) - z(V2))) +
+      vector2(x(P), z(P)) .
+  eq backRightPoint(P, ANGLE, V, V2) = 
+      rotatePoint(vector2(0,0),
+                  ANGLE,
+                  vector2(x(V) + x(V2), z(V) - z(V2))) +
+      vector2(x(P), z(P)) .
+
+  ---                         root position  yaw angle   bound center  bound extent
+  op 2DShapeRotatedVertices : Vector3        FloatOrInt  Vector3       Vector3      -> List{Vector2} .
+  eq 2DShapeRotatedVertices(P, ANGLE, V, V2) =
+      backLeftPoint(P, ANGLE, V, V2)
+      backRightPoint(P, ANGLE, V, V2)
+      frontRightPoint(P, ANGLE, V, V2)
+      frontLeftPoint(P, ANGLE, V, V2) .
+
+  --- op ttc2 : AWState String -> Float .
+  --- ceq ttc2(AWST, STR) = 
+  ---    (if X <= 0.0
+  ---     then 1000000.0
+  ---     else (distanceIgnoreY(P,P2) - 4.5) / (SPEED - SPEED2)
+  ---     fi)
+  ---   if P  := gtPosition(AWST, "ego") /\
+  ---      P2 := gtPosition(AWST, STR) /\
+  ---      SPEED := gtSpeed(AWST, "ego") /\
+  ---      SPEED2 := gtSpeed(AWST, STR) /\
+  ---      X := SPEED - SPEED2 .
+endm
+
+mod UTILITIES is
+  pr AWSTATE .
+
+  op preciseLongDis : AWState String String -> Maybe{FloatOrInt} .
+
+  var OBJs : Set{Object} .
+  vars POSE POSE2 : Pose .
+  vars TWIST ACCEL TWIST2 ACCEL2 : Twist .
+  vars X Y Z D DLA DLO DLO2 SPEED SPEED2 DIS DIS0 DIS2 X2 T T2 Y2 Z2 PROB W H W2 H2 : FloatOrInt .
+  vars CX CY CZ EX EY EZ CX2 CY2 CZ2 EX2 EY2 EZ2 ANGLE ANGLE2 SLA2 SLO SLO2 : FloatOrInt .
+  vars F F2 IOU : Float .
+  vars V V2 V3 V4 P P2 : Vector3 .
+  vars VERTICES VERTICES2 : List{Vector2} .
+  vars STR STR2 : String .
+  vars AWST : AWState .
+  vars UUID : Uuid .
+  vars CLS : Set{Class} .
+  vars POBJ POBJ2 : PObject .
+  vars BBPOBJ BBOBJ2 : BBPObject .
+  vars GTOBJ : GTObject .
+  vars N N2 : Nat .
+  vars RECT RECT2 : Rect .
+  vars ORI : Vector2 .
+
+  ceq preciseLongDis(AWST, STR, STR2) = 0 
+    if collision(AWST,STR,STR2) .
+  ceq preciseLongDis(AWST, STR, STR2) =
+      if DLO > 0  --- STR behind STR2 
+      then 
+        max$(DLO - boundsToFront(STR) - boundsToBack(STR2), 0)
+      else        --- STR2 behind STR 
+        max$(-1 * DLO - boundsToFront(STR2) - boundsToBack(STR), 0)
+      fi
+    if not collision(AWST, STR, STR2) /\
+       ANGLE := gtYawAngleOrient(AWST, STR) /\
+       ORI := vector2(cos(degreeToRadian(90 - ANGLE)), sin(degreeToRadian(90 - ANGLE))) /\
+       P  := gtPosition(AWST, STR) /\
+       P2 := gtPosition(AWST, STR2) /\
+       DLO := longitudeComp(vector3To2(P2 - P), ORI) .
+  eq preciseLongDis(AWST, STR, STR2) = nullFloat [owise] .
+
+
+endm
+
+in model-checker .
+
+mod PROPOSITIONS is
+  pr UTILITIES .
+  inc SATISFACTION .
+  subsort AWState < State .
+  sort ComparableExp .
+
+  var OBJs : Set{Object} .
+  vars POSE POSE2 : Pose .
+  vars TWIST ACCEL TWIST2 ACCEL2 : Twist .
+  vars X Y Z SPEED DIS X2 T T2 Y2 DELAY : FloatOrInt .
+  vars V V2 V3 V4 P P2 : Vector3 .
+  vars STR STR2 : String .
+  vars AWST : AWState .
+  var PROP : Prop .
+
+  op _<_ : ComparableExp FloatOrInt -> Prop .
+  op _>_ : ComparableExp FloatOrInt -> Prop .
+  op _<=_ : ComparableExp FloatOrInt -> Prop .
+  op _>=_ : ComparableExp FloatOrInt -> Prop .
+
+  op timeStamp : -> ComparableExp .
+
+--- standard properties
+  op collision : String String -> Prop .
+  op pos-diff : String String -> ComparableExp .
+  op ttc : String -> ComparableExp .
+  op thw : String -> ComparableExp .
+  op speed : String -> ComparableExp .
+  op accelScalar : String -> ComparableExp .
+  op precise-long-dis : String String -> ComparableExp .
+
+--- perception-related properties
+  --- NPC name
+  op perp-pos-diff : String -> ComparableExp .
+  op perp-rota-diff : String -> ComparableExp .
+  op perp-speed-diff : String -> ComparableExp .
+  op perp-shapelength-diff : String -> ComparableExp .
+  op perp-shapewidth-diff : String -> ComparableExp .
+
+  --- 2D bounding box on camera screen view
+  op IOU-ratio : String -> ComparableExp .
+
+  ceq AWST |= timeStamp < T = true
+    if timeStamp(AWST) < T .
+  ceq AWST |= timeStamp > T = true
+    if timeStamp(AWST) > T .
+  ceq AWST |= timeStamp <= T = true
+    if timeStamp(AWST) <= T .
+  ceq AWST |= timeStamp >= T = true
+    if timeStamp(AWST) >= T .
+
+  ceq AWST |= speed(STR) < X = true
+    if gtSpeed(AWST, STR) < X .
+  ceq AWST |= speed(STR) > X = true
+    if gtSpeed(AWST, STR) > X .
+  ceq AWST |= speed(STR) <= X = true
+    if gtSpeed(AWST, STR) <= X .
+  ceq AWST |= speed(STR) >= X = true
+    if gtSpeed(AWST, STR) >= X .
+
+  ceq AWST |= accelScalar(STR) < X = true
+    if gtAccelScalar(AWST, STR) < X .
+  ceq AWST |= accelScalar(STR) > X = true
+    if gtAccelScalar(AWST, STR) > X .
+  ceq AWST |= accelScalar(STR) <= X = true
+    if gtAccelScalar(AWST, STR) <= X .
+  ceq AWST |= accelScalar(STR) >= X = true
+    if gtAccelScalar(AWST, STR) >= X .
+
+  ceq AWST |= pos-diff(STR, STR2) < X = true
+    if magnitudeIgnoreY(pos-diff(AWST, STR, STR2)) < X .
+  ceq AWST |= pos-diff(STR, STR2) > X = true
+    if magnitudeIgnoreY(pos-diff(AWST, STR, STR2)) > X .
+  ceq AWST |= pos-diff(STR, STR2) <= X = true
+    if magnitudeIgnoreY(pos-diff(AWST, STR, STR2)) <= X .
+  ceq AWST |= pos-diff(STR, STR2) >= X = true
+    if magnitudeIgnoreY(pos-diff(AWST, STR, STR2)) >= X .
+
+  ceq AWST |= precise-long-dis(STR, STR2) < X = true
+    if preciseLongDis(AWST, STR, STR2) < X .
+  ceq AWST |= precise-long-dis(STR, STR2) > X = true
+    if preciseLongDis(AWST, STR, STR2) > X .
+  ceq AWST |= precise-long-dis(STR, STR2) <= X = true
+    if preciseLongDis(AWST, STR, STR2) <= X .
+  ceq AWST |= precise-long-dis(STR, STR2) >= X = true
+    if preciseLongDis(AWST, STR, STR2) >= X .
+
+  ceq AWST |= perp-pos-diff(STR) < X = true
+    if magnitudeIgnoreY(perp-pos-diff(AWST, STR)) < X .
+  ceq AWST |= perp-pos-diff(STR) > X = true
+    if magnitudeIgnoreY(perp-pos-diff(AWST, STR)) > X .
+  ceq AWST |= perp-pos-diff(STR) <= X = true
+    if magnitudeIgnoreY(perp-pos-diff(AWST, STR)) <= X .
+  ceq AWST |= perp-pos-diff(STR) >= X = true
+    if magnitudeIgnoreY(perp-pos-diff(AWST, STR)) >= X .
+  
+  ceq AWST |= perp-rota-diff(STR) < X = true
+    if perp-rota-diff(AWST, STR) < X .
+  ceq AWST |= perp-rota-diff(STR) > X = true
+    if perp-rota-diff(AWST, STR) > X .
+  ceq AWST |= perp-rota-diff(STR) <= X = true
+    if perp-rota-diff(AWST, STR) <= X .
+  ceq AWST |= perp-rota-diff(STR) >= X = true
+    if perp-rota-diff(AWST, STR) >= X .
+
+  ceq AWST |= perp-speed-diff(STR) < X = true
+    if perp-speed-diff(AWST, STR) < X .
+  ceq AWST |= perp-speed-diff(STR) > X = true
+    if perp-speed-diff(AWST, STR) > X .
+  ceq AWST |= perp-speed-diff(STR) <= X = true
+    if perp-speed-diff(AWST, STR) <= X .
+  ceq AWST |= perp-speed-diff(STR) >= X = true
+    if perp-speed-diff(AWST, STR) >= X .
+
+  ceq AWST |= perp-shapelength-diff(STR) < X = true
+    if perp-shapelength-diff(AWST, STR) < X .
+  ceq AWST |= perp-shapelength-diff(STR) > X = true
+    if perp-shapelength-diff(AWST, STR) > X .
+  ceq AWST |= perp-shapelength-diff(STR) <= X = true
+    if perp-shapelength-diff(AWST, STR) <= X .
+  ceq AWST |= perp-shapelength-diff(STR) >= X = true
+    if perp-shapelength-diff(AWST, STR) >= X .
+
+  ceq AWST |= perp-shapewidth-diff(STR) < X = true
+    if perp-shapewidth-diff(AWST, STR) < X .
+  ceq AWST |= perp-shapewidth-diff(STR) > X = true
+    if perp-shapewidth-diff(AWST, STR) > X .
+  ceq AWST |= perp-shapewidth-diff(STR) <= X = true
+    if perp-shapewidth-diff(AWST, STR) <= X .
+  ceq AWST |= perp-shapewidth-diff(STR) >= X = true
+    if perp-shapewidth-diff(AWST, STR) >= X .
+
+  ceq AWST |= IOU-ratio(STR) > X = true
+    if best-IOU-ratio(AWST, STR) > X .
+  ceq AWST |= IOU-ratio(STR) >= X = true
+    if best-IOU-ratio(AWST, STR) >= X .
+
+  ceq AWST |= ttc(STR) > X = true
+    if ttc(AWST, STR) > X .
+  ceq AWST |= ttc(STR) >= X = true
+    if ttc(AWST, STR) >= X .
+  ceq AWST |= ttc(STR) < X = true
+    if ttc(AWST, STR) < X .
+  ceq AWST |= ttc(STR) <= X = true
+    if ttc(AWST, STR) <= X .
+
+  ceq AWST |= thw(STR) > X = true
+    if thw(AWST, STR) > X .
+  ceq AWST |= thw(STR) >= X = true
+    if thw(AWST, STR) >= X .
+  ceq AWST |= thw(STR) < X = true
+    if thw(AWST, STR) < X .
+  ceq AWST |= thw(STR) <= X = true
+    if thw(AWST, STR) <= X .
+
+  ceq AWST |= collision(STR, STR2) = true
+    if collision(AWST, STR, STR2) .
+  
+  eq T # {OBJs} |= PROP = false [owise] .
+endm
+
+mod FORMULAS is
+  inc PROPOSITIONS .
+  inc MODEL-CHECKER .
+  inc LTL-SIMPLIFIER .
+
+  op next : Formula Nat -> Formula .
+  op nextIterAux : Nat Formula -> Formula .
+  op _within_ms : Formula Nat -> Formula .
+  
+  var OBJs : Set{Object} .
+  vars X Y Z T T2 DELAY : FloatOrInt .
+  vars STR STR2 : String .
+  vars AWST : AWState .
+  vars N N2 : Nat .
+  var F : Formula .
+
+  eq next(F, 0) = F .
+  eq next(F, s(N)) = nextIterAux(s(N), F) \/ next(F, N) .
+
+  eq nextIterAux(s(N), F) = O nextIterAux(N, F) .
+  eq nextIterAux(0, F) = F .
+
+  ceq F within N ms = next(F,N2)
+    if N2 := N quo fixedTimestep .
+endm
+
+set show advisories off .

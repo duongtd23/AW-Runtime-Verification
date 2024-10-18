@@ -1,0 +1,356 @@
+fmod MAYBE{X :: TRIV} is
+  sort Maybe{X} .
+  subsort X$Elt < Maybe{X} .
+  op maybe{X} : -> Maybe{X} [ctor] .
+endfm
+
+fmod FLOAT-RENAME is
+  pr FLOAT * (
+    op -_ : Float -> Float to -f_,
+    op _+_ : Float Float -> Float to _+f_,
+    op _-_ : Float Float -> Float to _-f_,
+    op _*_ : Float Float -> Float to _*f_,
+    op _/_ : [Float] [Float] -> [Float] to _/f_,
+    op _rem_ : [Float] [Float] -> [Float] to _remf_,
+    op _^_ : [Float] [Float] -> [Float] to _^f_,
+    op abs : Float -> Float to absf,
+    op sqrt : [Float] -> [Float] to sqrtf,
+    op floor : Float -> Float to floorf,
+    op ceiling : Float -> Float to ceilingf,
+    op min : Float Float -> Float to minf,
+    op max : Float Float -> Float to maxf,
+    op _<_ : Float Float -> Bool to _<f_,
+    op _>_ : Float Float -> Bool to _>f_,
+    op _<=_ : Float Float -> Bool to _<=f_,
+    op _>=_ : Float Float -> Bool to _>=f_
+  ) .
+endfm
+
+fmod CONVERSION-RENAME is
+  protecting RAT .
+  protecting FLOAT-RENAME .
+  protecting STRING .
+  sort DecFloat .
+  op <_,_,_> : Int String Int -> DecFloat [ctor] .
+  op float : Rat -> Float [special (
+    id-hook FloatOpSymbol (float)
+    op-hook floatSymbol (<Floats> : ~> Float)
+    op-hook succSymbol (s_ : Nat ~> NzNat)
+    op-hook minusSymbol (-_ : NzNat ~> Int)
+    op-hook divisionSymbol (_/_ : NzInt NzNat ~> NzRat))] .
+  op rat : FiniteFloat -> Rat [special (
+    id-hook FloatOpSymbol (rat)
+    op-hook floatSymbol (<Floats> : ~> Float)
+    op-hook succSymbol (s_ : Nat ~> NzNat)
+    op-hook minusSymbol (-_ : NzNat ~> Int)
+    op-hook divisionSymbol (_/_ : NzInt NzNat ~> NzRat))] .
+  op string : [Rat] [NzNat] -> [String] [special (
+    id-hook StringOpSymbol (string)
+    op-hook stringSymbol (<Strings> : ~> String)
+    op-hook succSymbol (s_ : Nat ~> NzNat)
+    op-hook minusSymbol (-_ : NzNat ~> Int)
+    op-hook divisionSymbol (_/_ : NzInt NzNat ~> NzRat))] .
+  op rat : [String] [NzNat] -> [Rat] [special (
+    id-hook StringOpSymbol (rat)
+    op-hook stringSymbol (<Strings> : ~> String)
+    op-hook succSymbol (s_ : Nat ~> NzNat)
+    op-hook minusSymbol (-_ : NzNat ~> Int)
+    op-hook divisionSymbol (_/_ : NzInt NzNat ~> NzRat))] .
+  op string : Float -> String [special (
+    id-hook StringOpSymbol (string)
+    op-hook stringSymbol (<Strings> : ~> String)
+    op-hook floatSymbol (<Floats> : ~> Float))] .
+  op float : [String] -> [Float] [special (
+    id-hook StringOpSymbol (float)
+    op-hook stringSymbol (<Strings> : ~> String)
+    op-hook floatSymbol (<Floats> : ~> Float))] .
+  op decFloat : Float Nat -> DecFloat [special (
+    id-hook StringOpSymbol (decFloat)
+    op-hook stringSymbol (<Strings> : ~> String)
+    op-hook floatSymbol (<Floats> : ~> Float)
+    op-hook succSymbol (s_ : Nat ~> NzNat)
+    op-hook minusSymbol (-_ : NzNat ~> Int)
+    op-hook decFloatSymbol (<_, _, _> : Int String Int ~> DecFloat))] .
+endfm
+
+fmod FLOAT-OR-INT is
+  pr CONVERSION-RENAME .
+
+  sort FloatOrInt .
+  subsorts Float Int < FloatOrInt .
+
+  op fvalue : FloatOrInt -> Float .
+  --- op -_ : FloatOrInt -> Float [ditto] .
+  op _+_ : FloatOrInt FloatOrInt -> Float [ditto] .
+  op _-_ : FloatOrInt FloatOrInt -> Float [ditto] .
+  op _*_ : FloatOrInt FloatOrInt -> Float [ditto] .
+  op _/_ : [FloatOrInt] [FloatOrInt] -> [Float] [ditto] .
+  op _<_ : FloatOrInt FloatOrInt -> Bool [ditto] .
+  op _>_ : FloatOrInt FloatOrInt -> Bool [ditto] .
+  op _<=_ : FloatOrInt FloatOrInt -> Bool [ditto] .
+  op _>=_ : FloatOrInt FloatOrInt -> Bool [ditto] .
+  op abs : FloatOrInt -> Float [ditto] .
+  op sqrt : FloatOrInt -> Float .
+  op min$ : FloatOrInt FloatOrInt -> Float .
+  op max$ : FloatOrInt FloatOrInt -> Float .
+
+  vars I I2 : Int .
+  vars F F2 : Float .
+  vars FI FI2 : FloatOrInt .
+
+  eq fvalue(I) = float(I) .
+  eq fvalue(F) = F .
+
+  --- eq -(FI) = -f(fvalue(FI)) .
+  eq FI + FI2 = fvalue(FI) +f fvalue(FI2) .
+  eq FI - FI2 = fvalue(FI) -f fvalue(FI2) .
+  eq FI * FI2 = fvalue(FI) *f fvalue(FI2) .
+  eq FI / FI2 = fvalue(FI) /f fvalue(FI2) .
+  eq FI < FI2 = fvalue(FI) <f fvalue(FI2) .
+  eq FI <= FI2 = fvalue(FI) <=f fvalue(FI2) .
+  eq FI > FI2 = fvalue(FI) >f fvalue(FI2) .
+  eq FI >= FI2 = fvalue(FI) >=f fvalue(FI2) .
+  eq abs(FI) = absf(fvalue(FI)) .
+  eq sqrt(FI) = sqrtf(fvalue(FI)) .
+  eq min$(FI,FI2) = minf(fvalue(FI), fvalue(FI2)) .
+  eq max$(FI,FI2) = maxf(fvalue(FI), fvalue(FI2)) .
+
+  op degreeToRadian : FloatOrInt -> Float .
+  op radianToDegree : FloatOrInt -> Float .
+  eq degreeToRadian(FI) = (FI / 180.0) * 3.14159 .
+  eq radianToDegree(FI) = (FI * 180.0) / 3.14159 .
+endfm
+
+fmod VECTOR3 is 
+  pr FLOAT-OR-INT .
+  sort Vector3 .
+  op ___ : FloatOrInt FloatOrInt FloatOrInt -> Vector3 [ctor] .
+
+  op _-_ : Vector3 Vector3 -> Vector3 [prec 33 gather (E e)] .
+  op _+_ : Vector3 Vector3 -> Vector3 [assoc comm prec 33] .
+  op magnitude : Vector3 -> Float .
+  op distance : Vector3 Vector3 -> Float .
+  op magnitudeIgnoreY : Vector3 -> Float .
+  op distanceIgnoreY : Vector3 Vector3 -> Float .
+  op normalize : Vector3 -> Vector3 .
+  op dot : Vector3 Vector3 -> Float .
+  ops x y z : Vector3 -> FloatOrInt .
+  
+  vars X Y Z X2 Y2 Z2 S : FloatOrInt .
+  vars V V2 : Vector3 .
+  eq x(X Y Z) = X .
+  eq y(X Y Z) = Y .
+  eq z(X Y Z) = Z .
+  eq ((X Y Z) + (X2 Y2 Z2)) = (X + X2) (Y + Y2) (Z + Z2) .
+  eq ((X Y Z) - (X2 Y2 Z2)) = (X - X2) (Y - Y2) (Z - Z2) .
+  eq dot((X Y Z) , (X2 Y2 Z2)) = (X * X2) + (Y * Y2) + (Z * Z2) .
+  eq magnitude(X Y Z) = sqrt(X * X + Y * Y + Z * Z) .
+  eq distance(V, V2) = magnitude(V - V2) .
+  eq magnitudeIgnoreY(X Y Z) = sqrt(X * X + Z * Z) .
+  eq distanceIgnoreY(V, V2) = magnitudeIgnoreY(V - V2) .
+  ceq normalize(X Y Z) = (X / S) (Y / S) (Z / S) 
+    if S := magnitude(X Y Z) .
+endfm
+
+view Vector3 from TRIV to VECTOR3 is
+  sort Elt to Vector3 .
+endv
+view FloatOrInt from TRIV to FLOAT-OR-INT is
+  sort Elt to FloatOrInt .
+endv
+fmod FLOAT-AND-NULL is
+  pr MAYBE{FloatOrInt} * (op maybe{FloatOrInt} to nullFloat) .
+  op _<_ : Maybe{FloatOrInt} FloatOrInt -> Bool [ditto] .
+  op _>_ : Maybe{FloatOrInt} FloatOrInt -> Bool [ditto] .
+  op _<=_ : Maybe{FloatOrInt} FloatOrInt -> Bool [ditto] .
+  op _>=_ : Maybe{FloatOrInt} FloatOrInt -> Bool [ditto] .
+
+  vars FI FI2 : FloatOrInt .
+  eq nullFloat < FI = false .
+  eq nullFloat > FI = false .
+  eq nullFloat <= FI = false .
+  eq nullFloat >= FI = false .
+endfm
+
+fmod VECTOR3-AND-NULL is
+  pr FLOAT-AND-NULL .
+  pr MAYBE{Vector3} * (op maybe{Vector3} to nullVector3) .
+  op magnitude : Maybe{Vector3} -> Maybe{FloatOrInt} .
+  eq magnitude(nullVector3) = nullFloat .
+endfm
+
+
+fmod VECTOR2 is
+  pr VECTOR3 .
+  sort Vector2 .
+  op vector2 : FloatOrInt FloatOrInt -> Vector2 [ctor] .
+
+  op _-_ : Vector2 Vector2 -> Vector2 [prec 33 gather (E e)] .
+  op _+_ : Vector2 Vector2 -> Vector2 [assoc comm prec 33] .
+  op distance : Vector2 Vector2 -> Float .
+  op magnitude : Vector2 -> Float .
+  op dot : Vector2 Vector2 -> Float .
+  op normalize : Vector2 -> Vector2 .
+
+  --- Rotate clockwise a point (px, py) around another point (cx, cy) by angle in radians
+  ---              pivot   angle      point (to be rotated)
+  op rotatePoint : Vector2 FloatOrInt Vector2 -> Vector2 .
+
+  vars CX CY ANGLE PX PY C S PX2 PY2 PX3 PY3 X X2 Y Y2 Z : FloatOrInt .
+  vars V V2 V3 V4 V5 P P2 : Vector2 .
+
+  eq (vector2(X, Y) + vector2(X2, Y2)) = vector2(X + X2, Y + Y2) .
+  eq (vector2(X, Y) - vector2(X2, Y2)) = vector2(X - X2, Y - Y2) .
+  eq magnitude(vector2(X,Y)) = sqrt(X * X + Y * Y) .
+  eq distance(V, V2) = magnitude(V - V2) .
+  eq dot(vector2(X, Y), vector2(X2, Y2)) = X * X2 + Y * Y2 .
+  ceq normalize(vector2(X,Y)) = vector2(X / S, Y / S) 
+    if S := magnitude(vector2(X,Y)) .
+
+  ceq rotatePoint(vector2(CX,CY), ANGLE, vector2(PX,PY)) =
+      vector2(PX3 + CX, PY3 + CY)
+    if S := sin(degreeToRadian(ANGLE * (-1))) /\
+       C := cos(degreeToRadian(ANGLE * (-1))) /\
+       PX2 := PX - CX /\
+       PY2 := PY - CY /\
+       PX3 := PX2 * C - PY2 * S /\
+       PY3 := PX2 * S + PY2 * C .
+
+  ---                 start point  end point  direction
+  op signedDistance : Vector2      Vector2    Vector2  -> Float .
+  ceq signedDistance(P,P2,V) =
+      if Y >= 0
+      then X
+      else -1 * X
+      fi
+    if X := distance(P,P2) /\
+       Y := dot(P2 - P, V) .
+
+  ---                  start point  end point  projection direction
+  op projectDistance : Vector2      Vector2    Vector2   -> Float .
+  ceq projectDistance(P,P2,V) = dot(V2,V3)
+    if V2 := normalize(V) /\
+       V3 := P2 - P .
+  
+  ---                         direction
+  op longitudeComp : Vector2  Vector2   -> Float .
+  op lateralComp   : Vector2  Vector2   -> Float .
+  eq longitudeComp(V, V2) = projectDistance(vector2(0,0), V, V2) .
+  ceq lateralComp(V, V2) = sqrt(X * X - Y * Y) 
+    if X := magnitude(V) /\
+       Y := projectDistance(vector2(0,0), V, V2) .
+
+  op vector3To2 : Vector3 -> Vector2 .
+  eq vector3To2(X Y Z) = vector2(X,Z) .
+endfm
+
+view Vector2 from TRIV to VECTOR2 is
+  sort Elt to Vector2 .
+endv
+
+fmod RECT is
+  pr VECTOR2 .
+  pr LIST{Vector2} .
+  sort Rect .
+  ---       leftmost   bottommost width      height
+  op ____ : FloatOrInt FloatOrInt FloatOrInt FloatOrInt -> Rect [ctor] .
+  ---                 center  extent
+  op rectFromBounds : Vector2 Vector2 -> Rect .
+
+  --- ratio between the intersection (overlap) of $r1 and $r2 and
+  --- the union square of r1 and r2
+  op IOURatio : Rect Rect -> Float .
+  op isOverlap? : Rect Rect -> Bool .
+  op square : Rect -> Float .
+  op intersection : Rect Rect -> Rect .
+
+  vars X Y X2 Y2 W H W2 H2 X3 Y3 W3 H3 X4 Y4 : FloatOrInt .
+  vars XMAX YMAX X2MAX Y2MAX CX CY PX PY ANGLE ANGLE2 : FloatOrInt .
+  vars AX BX AY BY S1 S2 S3 S4 S0 : FloatOrInt . 
+  vars INTERSECTION UNION : Float .
+  vars P0 P1 P2 P3 P4 P5 P6 P7 P8 : Vector2 .
+  vars RECT RECT2 : Rect .
+
+  eq rectFromBounds(vector2(CX,CY), vector2(AX,AY)) =
+    CX - AX
+    CY - AY
+    2.0 * AX
+    2.0 * AY .
+  eq square(X Y W H) = W * H .
+  ceq isOverlap?(X Y W H, X2 Y2 W2 H2) =
+      X2MAX > X and X2 < XMAX and
+      Y2MAX > Y and Y2 < YMAX
+    if XMAX := X + W /\ YMAX := Y + H /\
+       X2MAX := X2 + W2 /\ Y2MAX := Y2 + H2 .
+  ceq intersection(X Y W H, X2 Y2 W2 H2) = 
+      min$(X3,X4) min$(Y3,Y4) max$(0.0, X3 - X4) max$(0.0, Y3 - Y4)
+    if isOverlap?(X Y W H, X2 Y2 W2 H2) /\
+      XMAX := X + W /\ YMAX := Y + H /\
+      X2MAX := X2 + W2 /\ Y2MAX := Y2 + H2 /\
+      X3 := min$(XMAX, X2MAX) /\
+      X4 := max$(X, X2) /\
+      Y3 := min$(YMAX, Y2MAX) /\
+      Y4 := max$(Y, Y2) .
+  eq intersection(X Y W H, X2 Y2 W2 H2) = 0 0 0 0 [owise] .
+
+  ceq IOURatio(X Y W H, X2 Y2 W2 H2) =
+      INTERSECTION / UNION
+    if isOverlap?(X Y W H, X2 Y2 W2 H2) /\
+      X3 Y3 W3 H3 := intersection(X Y W H, X2 Y2 W2 H2) /\
+      INTERSECTION := square(X3 Y3 W3 H3) /\
+      UNION := (square(X Y W H) + square(X2 Y2 W2 H2)) - INTERSECTION .
+  eq IOURatio(X Y W H, X2 Y2 W2 H2) = 0.0 [owise] .
+
+  op DUMMY-RECT : -> Rect .
+  eq DUMMY-RECT = -1 -1 -1 -1 .
+
+  --- rotate clockwise a rectangle
+  op rotate : Rect FloatOrInt -> List{Vector2} .
+  ceq rotate(X Y W H,  ANGLE) = (
+      rotatePoint(vector2(CX,CY), ANGLE, vector2(X, Y))
+      rotatePoint(vector2(CX,CY), ANGLE, vector2(XMAX, Y))
+      rotatePoint(vector2(CX,CY), ANGLE, vector2(XMAX, YMAX))
+      rotatePoint(vector2(CX,CY), ANGLE, vector2(X, YMAX))
+    )
+    if CX := X + W / 2 /\ CY := Y + H / 2 /\
+       XMAX := X + W /\ YMAX := Y + H .
+
+  --- triangle area. 
+  --- given a triangle ABC, S_ABC = 1/2 * abs((BX - AX) * (CY - AY) - (CX - AX) * (BY - AY))
+  op triangleArea : List{Vector2} -> Float .
+  ceq triangleArea(vector2(AX,AY) vector2(BX,BY) vector2(CX,CY)) =
+      0.5 * abs(X * X2 - X3 * X4)
+    if X := BX - AX /\
+       X2 := CY - AY /\
+       X3 := CX - AX /\
+       X4 := BY - AY .
+
+  --- if a point inside (or on line) of rectangle
+  op pointInRect : Vector2 List{Vector2} -> Bool .
+  ceq pointInRect(P0,  P1 P2 P3 P4) =
+      S1 + S2 + S3 + S4 <= S0
+    if S1 := triangleArea(P0 P1 P2) /\
+       S2 := triangleArea(P0 P2 P3) /\
+       S3 := triangleArea(P0 P3 P4) /\
+       S4 := triangleArea(P0 P4 P1) /\
+       S0 := distance(P1,P2) * distance(P2,P3) .
+
+  --- check two rects defined by two list of vertices collide
+  op collision : List{Vector2} List{Vector2} -> Bool .
+  eq collision(P1 P2 P3 P4,   P5 P6 P7 P8) =
+      pointInRect(P1,  P5 P6 P7 P8) or
+      pointInRect(P2,  P5 P6 P7 P8) or
+      pointInRect(P3,  P5 P6 P7 P8) or
+      pointInRect(P4,  P5 P6 P7 P8) or
+      pointInRect(P5,  P1 P2 P3 P4) or
+      pointInRect(P6,  P1 P2 P3 P4) or
+      pointInRect(P7,  P1 P2 P3 P4) or
+      pointInRect(P8,  P1 P2 P3 P4) .
+
+  --- if RECT rotated ANGLE does not collide with RECT2 rotated ANGLE2 degrees
+  op collision : Rect FloatOrInt Rect FloatOrInt -> Bool .
+  ceq collision(RECT, ANGLE, RECT2, ANGLE2) =
+      collision(P1 P2 P3 P4,   P5 P6 P7 P8)
+    if P1 P2 P3 P4 := rotate(RECT,ANGLE) /\
+       P5 P6 P7 P8 := rotate(RECT2,ANGLE2) .
+endfm

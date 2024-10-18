@@ -1,0 +1,12 @@
+--- load deceleration20.maude
+--- load AW-Checker/metacom.maude
+
+red modelCheck(init, [] ~ collision("ego", "npc1")) .
+red modelCheck(init, [] ~ collision("ego", "npc2")) .
+
+red gtSpeed(stateAtTime(decelerationStartTime), "ego") .
+red minTTC("npc2") .
+
+--- validation
+--- search init =>! AWST:AWState .
+--- red preciseLongDis(stateAtTime(decelerationStartTime), "ego", "npc2") .

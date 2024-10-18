@@ -1,0 +1,73 @@
+mod META-COMPUTATION is
+  pr TRACE .
+  pr META-LEVEL .
+  vars M : Module .
+  vars RLS : RuleSet .
+  vars RL : Rule .
+  vars T T2 : Term .
+  vars ATTS : AttrSet .
+  vars AWST : AWState .
+  vars STR : String .
+  vars X X2 Y Y2 ERR : FloatOrInt .
+
+  op error : -> [AWState] .
+
+  op stateAtTime : FloatOrInt -> AWState .
+
+  op minTTC : String -> FloatOrInt .
+  op minTTC : String RuleSet FloatOrInt -> FloatOrInt .
+
+  eq minTTC(STR) = minTTC(STR, getRls(upModule('TRACE, false)), infiniteF) .
+  eq minTTC(STR, none, X) = X .
+  ceq minTTC(STR, RL RLS, X) =
+      if X2 < X
+      then minTTC(STR, RLS, X2)
+      else minTTC(STR, RLS, X)
+      fi
+    if rl T => T2 [ATTS] . := RL /\
+       AWST := downTerm(T, error) /\
+       AWST =/= error /\
+       X2 := ttc(AWST, STR) .
+
+  op egoSpeedAtCutin : -> FloatOrInt .
+  op egoSpeedAtCutin : RuleSet -> FloatOrInt .
+  eq egoSpeedAtCutin = egoSpeedAtCutin(getRls(upModule('TRACE, false))) .
+  eq egoSpeedAtCutin((none).RuleSet) = -1.0 .
+  ceq egoSpeedAtCutin(RL RLS) =
+      if timeStamp(AWST) == cutinStartTime
+      then gtSpeed(AWST, "ego")
+      else egoSpeedAtCutin(RLS)
+      fi
+    if rl T => T2 [ATTS] . := RL /\
+       AWST := downTerm(T, error) /\
+       AWST =/= error .
+
+  op stateAtTime : FloatOrInt RuleSet -> AWState .
+  eq stateAtTime(X) = stateAtTime(X, getRls(upModule('TRACE, false))) .
+  eq stateAtTime(X, (none).RuleSet) = 0.0 # {empty} .
+  ceq stateAtTime(X, RL RLS) =
+      if (ERR >= -0.0001) and (ERR <= 0.0001)
+      then AWST
+      else stateAtTime(X, RLS)
+      fi
+    if rl T => T2 [ATTS] . := RL /\
+       AWST := downTerm(T, error) /\
+       AWST =/= error /\
+       ERR := (timeStamp(AWST) + -1.0 * X) .
+
+--- for debuging
+  op stateMinTTC : String -> FloatOrInt .
+  op stateMinTTC : String RuleSet FloatOrInt FloatOrInt -> FloatOrInt .
+
+  eq stateMinTTC(STR) = stateMinTTC(STR, getRls(upModule('TRACE, false)), infiniteF, 0.0) .
+  eq stateMinTTC(STR, none, X, Y) = Y .
+  ceq stateMinTTC(STR, RL RLS, X, Y) =
+      if X2 < X
+      then stateMinTTC(STR, RLS, X2, timeStamp(AWST))
+      else stateMinTTC(STR, RLS, X, Y)
+      fi
+    if rl T => T2 [ATTS] . := RL /\
+       AWST := downTerm(T, error) /\
+       AWST =/= error /\
+       X2 := ttc(AWST, STR) .
+endm

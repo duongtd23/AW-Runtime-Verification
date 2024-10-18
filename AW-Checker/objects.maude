@@ -1,0 +1,290 @@
+load vectors.maude
+
+fmod QUATERNION is 
+  pr VECTOR3 .
+  sort Quaternion .
+  op _|_ : Vector3 FloatOrInt -> Quaternion [ctor] .
+
+  vars X Y Z W X2 Y2 X3 Y3 X4 Y4 : FloatOrInt .
+  op quaternionToEulerAngles : Quaternion -> Vector3 .
+  ceq quaternionToEulerAngles(X Y Z | W) =
+      radianToDegree(atan(X2, Y2))
+      radianToDegree(2.0 * atan(X3, Y3) - pi / 2.0)
+      radianToDegree(atan(X4, Y4))
+    if X2 := 2.0 * (W * X + Y * Z) /\
+       Y2 := 1.0 - 2.0 * (X * X + Y * Y) /\
+       X3 := sqrt(1.0 + 2.0 * (W * Y - X * Z)) /\
+       Y3 := sqrt(1.0 - 2.0 * (W * Y - X * Z)) /\
+       X4 := 2.0 * (W * Z + X * Y) /\
+       Y4 := 1.0 - 2.0 * (Y * Y + Z * Z) .
+endfm
+
+fmod POSE is
+  pr VECTOR3 .
+  --- pr QUATERNION .
+  sort Pose .
+  --- position and euler angles rotation
+  op {posi:_,rota:_} : Vector3 Vector3 -> Pose [ctor] .
+
+  vars V V2 V3 V4 P P2 : Vector3 .
+  vars X Y Z : FloatOrInt .
+  --- var Q : Quaternion .
+  op position : Pose -> Vector3 .
+  op yawAngle : Pose -> FloatOrInt . --- Euler angle over Yaw-axis
+  eq position({posi: P, rota: V}) = P .
+  eq yawAngle({posi: P, rota: X Y Z}) = Y .
+endfm
+
+fmod TWIST is
+  pr VECTOR3 .
+  sort Twist .
+  --- linear and angular
+  op {lin:_,ang:_} : Vector3 Vector3 -> Twist [ctor] .
+
+  vars V V2 V3 V4 P P2 : Vector3 .
+  vars X Y Z : FloatOrInt .
+  op linear : Twist -> Vector3 .
+  op angular : Twist -> Vector3 .
+  eq linear({lin: V, ang: V2}) = V .
+  eq angular({lin: V, ang: V2}) = V2 .
+endfm
+
+fmod UUID is
+  pr NAT .
+  sort Uuid .
+  op [_] : Nat -> Uuid [ctor] .
+  op [________________] : Nat Nat Nat Nat Nat Nat Nat Nat
+    Nat Nat Nat Nat Nat Nat Nat Nat -> Uuid [ctor] .
+endfm
+
+fmod GROUND-TRUTH-OBJECT is 
+  pr POSE + TWIST + STRING + UUID + RECT .
+  sort GTObject .
+  --- for Ego
+  op {name:_,pose:_,twist:_,accel:_} : 
+    String Pose Twist Twist -> GTObject [ctor] .
+  --- for NPCs
+  op {name:_,pose:_,twist:_,accel:_} : 
+    String Pose Twist FloatOrInt -> GTObject [ctor] .
+  op {name:_,pose:_,twist:_,accel:_,gt-rect:_} : 
+    String Pose Twist FloatOrInt Rect -> GTObject [ctor] .
+
+  vars TWIST ACCEL TWIST2 ACCEL2 : Twist .
+  var POSE : Pose .
+  vars X Y Z : FloatOrInt .
+  vars STR STR2 : String .
+  var RECT : Rect .
+  var OBJ : GTObject .
+
+  op name : GTObject -> String .
+  op gtPose : GTObject -> Pose .
+  op gtVel : GTObject -> Twist .
+  op gtAccel : GTObject -> Vector3 .
+  op gtRectOnCamera : GTObject -> Rect .
+
+  --- alias
+  op gtPosition : GTObject -> Vector3 .
+  op gtYawAngleOrient : GTObject -> FloatOrInt .
+  op gtLinearVel : GTObject -> Vector3 .
+
+  eq name({name: STR, pose: POSE, twist: TWIST, accel: ACCEL}) = STR .
+  eq name({name: STR, pose: POSE, twist: TWIST, accel: X}) = STR .
+  eq name({name: STR, pose: POSE, twist: TWIST, accel: X, gt-rect: RECT}) = STR .
+
+  eq gtPose({name: STR, pose: POSE, twist: TWIST, accel: ACCEL}) = POSE .
+  eq gtPose({name: STR, pose: POSE, twist: TWIST, accel: X}) = POSE .
+  eq gtPose({name: STR, pose: POSE, twist: TWIST, accel: X, gt-rect: RECT}) = POSE .
+
+  eq gtVel({name: STR, pose: POSE, twist: TWIST, accel: ACCEL}) = TWIST .
+  eq gtVel({name: STR, pose: POSE, twist: TWIST, accel: X}) = TWIST  .
+  eq gtVel({name: STR, pose: POSE, twist: TWIST, accel: X, gt-rect: RECT}) = TWIST .
+
+  eq gtAccel({name: STR, pose: POSE, twist: TWIST, accel: ACCEL}) = linear(ACCEL) .
+  eq gtAccel({name: STR, pose: POSE, twist: TWIST, accel: X}) = X 0 0  .
+  eq gtAccel({name: STR, pose: POSE, twist: TWIST, accel: X, gt-rect: RECT}) = X 0 0 .
+
+  eq gtRectOnCamera({name: STR, pose: POSE, twist: TWIST, accel: X, gt-rect: RECT}) = RECT .
+  eq gtRectOnCamera(OBJ) = DUMMY-RECT [owise] .
+
+  eq gtPosition(OBJ) = position(gtPose(OBJ)) .
+  eq gtYawAngleOrient(OBJ) = yawAngle(gtPose(OBJ)) .
+  eq gtLinearVel(OBJ) = linear(gtVel(OBJ)) .
+endfm
+
+fmod PEDESTRIAN is
+  pr POSE + STRING + RECT .
+  sort Pedestrian .
+  op {name:_,pose:_,speed:_} : 
+    String Pose FloatOrInt -> Pedestrian [ctor] .
+  op {name:_,pose:_,speed:_,gt-rect:_} : 
+    String Pose FloatOrInt Rect -> Pedestrian [ctor] .
+
+  var POSE : Pose .
+  vars X Y Z : FloatOrInt .
+  vars STR STR2 : String .
+  var RECT : Rect .
+  var OBJ : Pedestrian .
+
+  op pedesName : Pedestrian -> String .
+  op pedesPose : Pedestrian -> Pose .
+  op pedesSpeed : Pedestrian -> FloatOrInt .
+  op pedesRectOnCamera : Pedestrian -> Rect .
+
+  --- alias
+  op pedesPosition : Pedestrian -> Vector3 .
+  op pedesYawAngleOrient : Pedestrian -> FloatOrInt .
+
+  eq pedesName({name: STR, pose: POSE, speed: X}) = STR .
+  eq pedesName({name: STR, pose: POSE, speed: X, gt-rect: RECT}) = STR .
+  eq pedesPose({name: STR, pose: POSE, speed: X}) = POSE .
+  eq pedesPose({name: STR, pose: POSE, speed: X, gt-rect: RECT}) = POSE .
+  eq pedesSpeed({name: STR, pose: POSE, speed: X}) = X .
+  eq pedesSpeed({name: STR, pose: POSE, speed: X, gt-rect: RECT}) = X .
+  eq pedesRectOnCamera({name: STR, pose: POSE, speed: X, gt-rect: RECT}) = RECT .
+  eq pedesRectOnCamera(OBJ) = DUMMY-RECT [owise] .
+
+  eq pedesPosition(OBJ) = position(pedesPose(OBJ)) .
+  eq pedesYawAngleOrient(OBJ) = yawAngle(pedesPose(OBJ)) .
+endfm
+
+fmod CLASSIFICATION is
+  pr FLOAT-OR-INT + NAT .
+  sort Class .
+  --- class ID and probability
+  op _->_ : Nat FloatOrInt -> Class [ctor] .
+endfm
+
+view Class from TRIV to CLASSIFICATION is
+  sort Elt to Class .
+endv 
+fmod CLASS-SET is 
+  pr SET{Class} .
+
+  vars X Y Z : FloatOrInt .
+  vars CLS : Set{Class} .
+  var N : Nat .
+  
+  --- check if vehicle is detected in classification 
+  op isVehicleClass : Set{Class} -> Bool .
+  ceq isVehicleClass((N -> X, CLS)) = true
+    if N <= VEHICLE-CLASS-MAX /\ N >= VEHICLE-CLASS-MIN /\
+       X >= CLASSIFICATION-THRESHOLD .
+  eq isVehicleClass(CLS) = false [owise] .
+
+  --- check if pedestrian is detected in classification 
+  op isPedestrianClass : Set{Class} -> Bool .
+  ceq isPedestrianClass((N -> X, CLS)) = true
+    if N == PEDESTRIAN-CLASS /\
+       X >= CLASSIFICATION-THRESHOLD .
+  eq isPedestrianClass(CLS) = false [owise] .
+
+***(
+ * constants
+)
+  ops UNKNOW-CLASS PEDESTRIAN-CLASS VEHICLE-CLASS-MIN VEHICLE-CLASS-MAX : -> Nat .
+  eq UNKNOW-CLASS = 0 .
+  eq PEDESTRIAN-CLASS = 7 .
+  eq VEHICLE-CLASS-MIN = 1 .
+  eq VEHICLE-CLASS-MAX = 6 .
+  op CLASSIFICATION-THRESHOLD : -> Float .
+  eq CLASSIFICATION-THRESHOLD = 0.1 .
+endfm
+
+view Pose from TRIV to POSE is
+  sort Elt to Pose .
+endv 
+fmod PREDICTION-PATH is
+  pr POSE .
+  pr LIST{Pose} .
+  sort PredictPath .
+
+  op {confidence:_,time-step:_,path:_} : FloatOrInt FloatOrInt List{Pose} -> PredictPath [ctor] .
+endfm
+
+view PredictPath from TRIV to PREDICTION-PATH is
+  sort Elt to PredictPath .
+endv 
+
+fmod PERCEPTION-OBJECT is
+  pr TWIST + CLASS-SET + UUID + RECT + VECTOR3-AND-NULL .
+  pr LIST{PredictPath} .
+
+  --- normal detected objects and 2d bounding box detected objects
+  sorts PObject BBPObject .
+
+  op {id:_,epro:_,class:[_],pose:_,twist:_,accel:_} : 
+    Uuid FloatOrInt Set{Class} Pose Twist Twist -> PObject [ctor] .
+  op {id:_,epro:_,class:[_],pose:_,twist:_,accel:_,shape:_} : 
+    Uuid FloatOrInt Set{Class} Pose Twist Twist Vector3 -> PObject [ctor] .
+
+  op {id:_,epro:_,class:[_],pose:_,twist:_,accel:_,pdpath:_} : 
+    Uuid FloatOrInt Set{Class} Pose Twist Twist List{PredictPath} -> PObject [ctor] .
+  op {id:_,epro:_,class:[_],pose:_,twist:_,accel:_,pdpath:_,shape:_} : 
+    Uuid FloatOrInt Set{Class} Pose Twist Twist List{PredictPath} Vector3 -> PObject [ctor] .
+
+  --- 2d detected object on camera viewpoint
+  op {epro:_,class:[_],rect:_} : 
+    FloatOrInt Set{Class} Rect -> BBPObject [ctor] .
+
+  vars TWIST ACCEL TWIST2 ACCEL2 : Twist .
+  var POSE : Pose .
+  vars PROB : FloatOrInt .
+  var RECT : Rect .
+  var UUID : Uuid .
+  var CLS : Set{Class} .
+  var OBJ : PObject .
+  var SH : Vector3 .
+  var PPATHs : List{PredictPath} .
+
+  op perpPose : PObject -> Pose .
+  op perpVel : PObject -> Twist .
+  op class : PObject -> Set{Class} .
+  op perpPosition : PObject -> Vector3 .
+  op 2DClass : BBPObject -> Set{Class} .
+  op 2DRect : BBPObject -> Rect .
+  op perpPredictPath : PObject -> List{PredictPath} .
+
+  --- alias
+  op perpYawAngleOrient : PObject -> FloatOrInt .
+  op perpLinearVel : PObject -> Vector3 .
+  op perpShape : PObject -> Maybe{Vector3} .
+
+  eq perpPose({id: UUID, epro: PROB, class: [CLS], pose: POSE, twist: TWIST, accel: ACCEL}) = POSE .
+  eq perpPose({id: UUID, epro: PROB, class: [CLS], pose: POSE, twist: TWIST, accel: ACCEL, shape: SH}) = POSE .
+  eq perpVel({id: UUID, epro: PROB, class: [CLS], pose: POSE, twist: TWIST, accel: ACCEL}) = TWIST .
+  eq perpVel({id: UUID, epro: PROB, class: [CLS], pose: POSE, twist: TWIST, accel: ACCEL, shape: SH}) = TWIST .
+  eq class({id: UUID, epro: PROB, class: [CLS], pose: POSE, twist: TWIST, accel: ACCEL}) = CLS .
+  eq class({id: UUID, epro: PROB, class: [CLS], pose: POSE, twist: TWIST, accel: ACCEL, shape: SH}) = CLS .
+  eq perpShape({id: UUID, epro: PROB, class: [CLS], pose: POSE, twist: TWIST, accel: ACCEL, shape: SH}) = SH .
+  
+  eq perpPose({id: UUID, epro: PROB, class: [CLS], pose: POSE, twist: TWIST, accel: ACCEL, pdpath: PPATHs}) = POSE .
+  eq perpPose({id: UUID, epro: PROB, class: [CLS], pose: POSE, twist: TWIST, accel: ACCEL, pdpath: PPATHs, shape: SH}) = POSE .
+  eq perpVel({id: UUID, epro: PROB, class: [CLS], pose: POSE, twist: TWIST, accel: ACCEL, pdpath: PPATHs}) = TWIST .
+  eq perpVel({id: UUID, epro: PROB, class: [CLS], pose: POSE, twist: TWIST, accel: ACCEL, pdpath: PPATHs, shape: SH}) = TWIST .
+  eq class({id: UUID, epro: PROB, class: [CLS], pose: POSE, twist: TWIST, accel: ACCEL, pdpath: PPATHs}) = CLS .
+  eq class({id: UUID, epro: PROB, class: [CLS], pose: POSE, twist: TWIST, accel: ACCEL, pdpath: PPATHs, shape: SH}) = CLS .
+  eq perpPredictPath({id: UUID, epro: PROB, class: [CLS], pose: POSE, twist: TWIST, accel: ACCEL, pdpath: PPATHs}) = PPATHs .
+  eq perpPredictPath({id: UUID, epro: PROB, class: [CLS], pose: POSE, twist: TWIST, accel: ACCEL, pdpath: PPATHs, shape: SH}) = PPATHs .
+  eq perpShape({id: UUID, epro: PROB, class: [CLS], pose: POSE, twist: TWIST, accel: ACCEL, pdpath: PPATHs, shape: SH}) = SH .
+  
+  eq 2DClass({epro: PROB, class: [CLS], rect: RECT}) = CLS .
+  eq 2DRect({epro: PROB, class: [CLS], rect: RECT}) = RECT .
+
+  eq perpPosition(OBJ) = position(perpPose(OBJ)) .
+  eq perpYawAngleOrient(OBJ) = yawAngle(perpPose(OBJ)) .
+  eq perpLinearVel(OBJ) = linear(perpVel(OBJ)) .
+  eq perpShape(OBJ) = nullVector3 [owise] .
+endfm
+
+fmod OBJECT is
+  pr GROUND-TRUTH-OBJECT + PERCEPTION-OBJECT + PEDESTRIAN .
+  sort Object .
+  subsorts GTObject Pedestrian PObject BBPObject < Object .
+endfm
+
+view Object from TRIV to OBJECT is
+  sort Elt to Object .
+endv 
+fmod OBJECT-SET is
+  pr SET{Object} .
+endfm

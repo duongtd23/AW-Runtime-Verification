@@ -1,0 +1,12 @@
+--- load cutout20-1.maude
+--- load AW-Checker/metacom.maude
+
+red modelCheck(init, [] ~ collision("ego", "npc1")) .
+red modelCheck(init, [] ~ collision("ego", "npc2")) .
+
+red gtSpeed(stateAtTime(cutoutStartTime), "ego") .
+red minTTC("npc2") .
+
+--- validation
+--- search init =>! AWST:AWState .
+--- red preciseLongDis(stateAtTime(cutoutStartTime), "ego", "npc2") .

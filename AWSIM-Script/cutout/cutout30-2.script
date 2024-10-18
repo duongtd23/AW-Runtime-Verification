@@ -1,0 +1,23 @@
+spawnPos = "TrafficLane.112";
+goal = "TrafficLane.111" at 220;
+ve = 8.333;
+
+route1 = [
+    "TrafficLane.112" max-velocity(ve),
+    cut-out(120, ve, 1.4, 9),
+    "TrafficLane.111" max-velocity(ve)
+];
+
+npc1 = NPC("hatchback", spawnPos forward 20, goal, route1, [acceleration(1), delay-move-until-ego-engaged(1)]);
+npc2 = NPC("hatchback", _, [delay-spawn(_)]);
+
+ego = Ego(spawnPos, "TrafficLane.112" at 190, [max-velocity(ve)]);
+
+run(ego, [npc1,npc2], [saving-timeout(50)]);
+
+
+// cut-out(150, ve, 1, 10) says that
+//  NPC starts cutout (lane 112 -> lane 111) at offset 150 maude
+//  NPC velocity is 8.33 m/s
+//  NPC lateral velocity is 1 m/s
+//  d0 is 10 m

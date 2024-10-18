@@ -9,7 +9,7 @@ The traces of our experiments are in the [Traces folder](Traces).
 The extended AWSIM-Labs and AWSIM-Script can be found at this forked repo: https://github.com/duongtd23/AWSIM-Labs.
 
 
-## Demonstrations of some collisions
+## Demonstration of some collisions
 
 Below are demonstrations of some collision and non-collision cases from our experiments.
 

@@ -13,8 +13,8 @@ The extended AWSIM-Labs and AWSIM-Script can be found at this forked repo: https
 
 Below are demonstrations of some collision and non-collision cases from our experiments.
 
-## Cut-in scenarios
-### Scenario 30-10-6
+### Cut-in scenarios
+#### Scenario 30-10-6
 
 https://github.com/user-attachments/assets/2b766cf8-488c-4fde-8d02-e7e17fe9f208
 
@@ -25,7 +25,7 @@ When the cut-in starts, the longitudinal distance between the two vehicles (`dx0
 A collision occurred (in both lidar-only and camera-lidar fusion perception modes), which can be seen in the [video](Screencasts/camera_lidar_fusion/cutin-30-10-6.mp4?ref_type=heads) above.
 Note that, a collision is not expected under the good driver model.
 
-### Scenario 40-20-3
+#### Scenario 40-20-3
 
 https://github.com/user-attachments/assets/5aa87e40-5511-41bd-b75c-9f7670b41014
 
@@ -36,8 +36,8 @@ A collision occurred in the camera-lidar fusion perception mode, shown in the [v
 
 While in the lidar-only perception mode, no collision occurred, as shown in the following [video](Screencasts/lidar/cutin-40-20-3.mp4?ref_type=heads):
 
-## Cut-out scenarios
-### Scenario 50-1
+### Cut-out scenarios
+#### Scenario 50-1
 
 https://github.com/user-attachments/assets/6fd3f167-1b24-41f6-a8a1-ec67081c9c51
 
@@ -56,8 +56,8 @@ we propose to dynamically spawn the challenging vehicle at the moment the cut-ou
 
 A collision occurred in both perception modes ([video](Screencasts/camera_lidar_fusion/cutout-50-1.mp4?ref_type=heads) above).
 
-## Deceleration scenarios
-### Scenario 20
+### Deceleration scenarios
+#### Scenario 20
 
 https://github.com/user-attachments/assets/2d22630d-6edc-4d8e-b2cb-d20c382486ab
 

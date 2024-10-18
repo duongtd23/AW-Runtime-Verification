@@ -22,7 +22,7 @@ In this [scenario](AWSIM-Script/cutin/cutin30-10-6.script), the ego vehicle and 
 The NPC vehicle abruptly cuts in front of the ego vehicle.
 The lateral velocity of the cut-in (`Vy`) is 1.6 m/s.
 When the cut-in starts, the longitudinal distance between the two vehicles (`dx0`) is 11 meters.
-A collision occurred (in both lidar-only and camera-lidar fusion perception modes), which can be seen in the [video](Screencasts/camera_lidar_fusion/cutin-30-10-6.mp4?ref_type=heads) above.
+A collision occurred (in both lidar-only and camera-lidar fusion perception modes), which can be seen in the [video](Screencasts/camera_lidar_fusion/cutin-30-10-6.mp4) above.
 Note that, a collision is not expected under the good driver model.
 
 #### Scenario 40-20-3
@@ -32,9 +32,9 @@ https://github.com/user-attachments/assets/5aa87e40-5511-41bd-b75c-9f7670b41014
 In this [scenario](AWSIM-Script/cutin/cutin40-20-3.script), the ego vehicle and the NPC vehicle travel at speeds of 40 km/h and 20 km/h (`Ve` and `Vo`), respectively. 
 The lateral velocity of the cut-in (`Vy`) is 1.0 m/s 
 When the cut-in starts, the longitudinal distance between the two vehicles (`dx0`) is 7 meters.
-A collision occurred in the camera-lidar fusion perception mode, shown in the [video](Screencasts/camera_lidar_fusion/cutin-40-20-3.mp4?ref_type=heads) above. 
+A collision occurred in the camera-lidar fusion perception mode, shown in the [video](Screencasts/camera_lidar_fusion/cutin-40-20-3.mp4) above. 
 
-While in the lidar-only perception mode, no collision occurred, as shown in the following [video](Screencasts/lidar/cutin-40-20-3.mp4?ref_type=heads):
+While in the lidar-only perception mode, no collision occurred, as shown in the following [video](Screencasts/lidar/cutin-40-20-3.mp4):
 
 ### Cut-out scenarios
 #### Scenario 50-1
@@ -54,7 +54,7 @@ dx0 + dx0_f + length(NPC) = 2 * 13.889 + 14 + 4 = 45.778 (m)
 Since achieving the 2-second THW constraint in Autoware is challenging (Autoware often maintains a greater distance to the vehicle ahead for safety), 
 we propose to dynamically spawn the challenging vehicle at the moment the cut-out starts, ensuring that the distance from the spawning position to the ego vehicle equals the distance above.
 
-A collision occurred in both perception modes ([video](Screencasts/camera_lidar_fusion/cutout-50-1.mp4?ref_type=heads) above).
+A collision occurred in both perception modes ([video](Screencasts/camera_lidar_fusion/cutout-50-1.mp4) above).
 
 ### Deceleration scenarios
 #### Scenario 20
@@ -66,9 +66,9 @@ The NPC vehicle suddenly decelerates and stops at a deceleration of 1.0G.
 
 Similar to the cut-out scenario, we propose to dynamically spawn the challenging vehicle to achieve the 2-second THW constraint in Autoware.
 
-A collision occurred in the camera-lidar fusion perception mode ([video](Screencasts/camera_lidar_fusion/decel-20.mp4?ref_type=heads) above).
+A collision occurred in the camera-lidar fusion perception mode ([video](Screencasts/camera_lidar_fusion/decel-20.mp4) above).
 
-In contrast, the lidar-only mode could avoid a collision (see [video](Screencasts/lidar/decel-20.mp4?ref_type=heads) below).
+In contrast, the lidar-only mode could avoid a collision (see [video](Screencasts/lidar/decel-20.mp4) below).
 
 https://github.com/user-attachments/assets/9e36d8cc-5f0c-4137-a90a-77430d6a2ea0
 

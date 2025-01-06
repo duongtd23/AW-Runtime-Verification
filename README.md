@@ -1,13 +1,12 @@
 ## A Runtime Verification Framework for Safety Analysis of Autonomous Driving Systems
 
-The input scripts supporting our experiments are available in the [AWSIM-Script folder](AWSIM-Script).
+The input scripts supporting our experiments are available in the [AWSIM-Script folder](AWSIM-Script). The setup requirements can also be found in this folder.
 
-The AW-Checker tool and its guidelines can be found in the [AW-Checker folder](AW-Checker).
+The AW-Checker tool and its installation guidelines can be found in the [AW-Checker folder](AW-Checker).
 
 The traces of our experiments are in the [Traces folder](Traces).
 
-The extended AWSIM-Labs and AWSIM-Script can be found at this forked repo: https://github.com/duongtd23/AWSIM-Labs.
-
+The extended AWSIM-Labs and AWSIM-Script can be found at: https://github.com/duongtd23/AWSIM-Labs/tree/awsim-script.
 
 ## Demonstration of some collisions
 

@@ -30,6 +30,7 @@ endfm
 
 mod AWSTATE is 
   pr OBJECT-SET .
+  pr SET{String} .
   pr ENVIRONMENT + FLOAT-AND-NULL + VECTOR3-AND-NULL .
   sort AWState .
   op _#{_} : FloatOrInt Set{Object} -> AWState [ctor] .
@@ -48,6 +49,7 @@ mod AWSTATE is
   op gtAccel : AWState String -> Maybe{Vector3} .
   op gtAccelScalar : AWState String -> Maybe{FloatOrInt} .
   op closestDetectedObject : AWState String -> Set{Object} .
+  op allNPCVehicles : AWState -> Set{String} .
 
   --- collide
   op collision : AWState String String -> Bool .
@@ -152,6 +154,17 @@ mod AWSTATE is
     if P := gtCenterPosition(T # {OBJs},  STR) /\
       POBJ := closestDetectedVeh(P, OBJs) .
   
+  op allNPCVehicles : Set{Object} -> Set{String} .
+  eq allNPCVehicles(T # {OBJs}) = allNPCVehicles(OBJs) .
+  eq allNPCVehicles(empty) = empty .
+  ceq allNPCVehicles((GTOBJ , OBJs)) =
+      if STR == "ego"
+      then allNPCVehicles(OBJs)
+      else STR , allNPCVehicles(OBJs)
+      fi
+    if STR := name(GTOBJ) .
+  eq allNPCVehicles(OBJs) = empty [owise] .
+
   eq gtVehicle(AWST, STR) = empty [owise] .
   eq gtPedestrian(AWST, STR) = empty [owise] .
   eq gtPosition(AWST, STR) = nullVector3 [owise] .

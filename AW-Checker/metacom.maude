@@ -1,10 +1,6 @@
-view ComparableExp from TRIV to PROPOSITIONS is
-  sort Elt to ComparableExp .
-endv 
 mod META-COMPUTATION is
-  pr TRACE .
+  pr TRACE + ADS-MAP .
   pr META-LEVEL .
-  pr SET{ComparableExp} .
 
   vars M : Module .
   vars RLS : RuleSet .
@@ -16,7 +12,6 @@ mod META-COMPUTATION is
   vars X X2 Y Y2 Z Z2 ERR : FloatOrInt .
   vars STRs : Set{String} .
   vars CEXP : ComparableExp .
-  vars CEXPs : Set{ComparableExp} .
   var I : Int .
 
   op error : -> [AWState] .
@@ -64,10 +59,10 @@ mod META-COMPUTATION is
        AWST =/= error /\
        ERR := (timeStamp(AWST) + -1.0 * X) .
 
-  sort ComparisonOp .
   sort PerceptionPropSymbol .
-  ops < > <= >= : -> ComparisonOp [ctor] .
   ops perp-pos-diff perp-rota-diff perp-shapelength-diff perp-shapewidth-diff IOU-ratio : -> PerceptionPropSymbol [ctor] .
+  vars COP COP2 : ComparisonOp .
+  vars PPS : PerceptionPropSymbol .
 
   op allNPCVehicles : -> Set{String} .
   ceq allNPCVehicles = allNPCVehicles(AWST)
@@ -75,16 +70,11 @@ mod META-COMPUTATION is
        AWST := downTerm(T, error) /\
        AWST =/= error .
   
-  op collision : String -> Prop .
-  op pos-diff : String -> Set{ComparableExp} .
-  op ttc : -> Set{ComparableExp} .
-  
-  op _<_ : Set{ComparableExp} FloatOrInt -> Prop .
-  op _>_ : Set{ComparableExp} FloatOrInt -> Prop .
-  op _<=_ : Set{ComparableExp} FloatOrInt -> Prop .
-  op _>=_ : Set{ComparableExp} FloatOrInt -> Prop .
+  op collision : String -> Formula .
+  op pos-diff : String -> ComparableExp .
+  op ttc : -> ComparableExp .
 
-  op collisionAux : String Set{String} -> Prop .
+  op collisionAux : String Set{String} -> Formula .
   eq collision(STR) = collisionAux(STR, allNPCVehicles) .
   eq collisionAux(STR, empty) = False .
   eq collisionAux(STR, (STR2 , STRs)) = 
@@ -93,77 +83,51 @@ mod META-COMPUTATION is
     else collision(STR, STR2) \/ collisionAux(STR, STRs)
     fi .
 
-  op pos-diff-Aux : String Set{String} -> Set{ComparableExp} .
-  eq pos-diff(STR) = pos-diff-Aux(STR, allNPCVehicles) .
-  eq pos-diff-Aux(STR, empty) = empty .
-  eq pos-diff-Aux(STR, (STR2 , STRs)) = 
+  op pos-diff-Aux : String Set{String} ComparisonOp FloatOrInt -> Formula .
+  eq pos-diff(STR) COP X = pos-diff-Aux(STR, allNPCVehicles, COP, X) .
+  eq pos-diff-Aux(STR, empty, COP, X) = True .
+  eq pos-diff-Aux(STR, (STR2 , STRs), COP, X) = 
     if STR == STR2
-    then pos-diff-Aux(STR, STRs) 
-    else pos-diff(STR, STR2) , pos-diff-Aux(STR, STRs) 
+    then pos-diff-Aux(STR, STRs, COP, X) 
+    else (pos-diff(STR, STR2) COP X) /\ pos-diff-Aux(STR, STRs, COP, X) 
     fi .
 
-  op ttcAux : Set{String} -> Set{ComparableExp} .
-  eq ttc = ttcAux(allNPCVehicles) .
-  eq ttcAux(empty) = empty .
-  eq ttcAux((STR2 , STRs)) = 
+  op ttcAux : Set{String} ComparisonOp FloatOrInt -> Formula .
+  eq ttc COP X = ttcAux(allNPCVehicles, COP, X) .
+  eq ttcAux(empty, COP, X) = True .
+  eq ttcAux((STR2 , STRs), COP, X) = 
     if STR2 == "ego"
-    then ttcAux(STRs) 
-    else ttc(STR2) , ttcAux(STRs) 
+    then ttcAux(STRs, COP, X) 
+    else (ttc(STR2) COP X) /\ ttcAux(STRs, COP, X)
     fi .
 
-  ceq (CEXP , CEXPs) <  X   = CEXP < X /\ CEXPs < X 
-    if CEXPs =/= empty .
-  ceq (CEXP , CEXPs) <= X   = CEXP <= X /\ CEXPs <= X 
-    if CEXPs =/= empty .
-  ceq (CEXP , CEXPs) >  X   = CEXP > X /\ CEXPs > X 
-    if CEXPs =/= empty .
-  ceq (CEXP , CEXPs) >= X   = CEXP >= X /\ CEXPs >= X 
-    if CEXPs =/= empty .
+  op distance__->___within_ms : ComparisonOp FloatOrInt PerceptionPropSymbol ComparisonOp FloatOrInt FloatOrInt -> Formula .
+  op perpIterAux : ComparisonOp FloatOrInt PerceptionPropSymbol ComparisonOp FloatOrInt FloatOrInt Set{String} -> Formula .
 
-  vars COP COP2 : ComparisonOp .
-  vars PPS : PerceptionPropSymbol .
-
-  op distance__->___within_ms : ComparisonOp FloatOrInt PerceptionPropSymbol ComparisonOp FloatOrInt FloatOrInt -> Prop .
-  op perpIterAux : ComparisonOp FloatOrInt PerceptionPropSymbol ComparisonOp FloatOrInt FloatOrInt Set{String} -> Prop .
-  op writeCompareOp : ComparableExp ComparisonOp FloatOrInt -> Prop .
-
+---  distance <   9 -> perp-pos-diff < 2 within 200 ms
   eq distance COP X -> PPS COP2 Y within Z ms =
       perpIterAux(COP,X,PPS,COP2,Y,Z,allNPCVehicles) .
 
   eq perpIterAux(COP,X,PPS,COP2,Y,Z, empty) = True .
   eq perpIterAux(COP,X,PPS,COP2,Y,Z, (STR, STRs)) =
-    (writeCompareOp(pos-diff("ego", STR), COP, X)
+    ((pos-diff("ego", STR) COP X)
      -> 
      (if PPS == perp-pos-diff
-      then writeCompareOp(perp-pos-diff(STR), COP2, Y) within Z ms
+      then (perp-pos-diff(STR) COP2 Y) within Z ms
       else 
         if PPS == perp-rota-diff
-        then writeCompareOp(perp-rota-diff(STR), COP2, Y) within Z ms
+        then (perp-rota-diff(STR) COP2 Y) within Z ms
         else 
           if PPS == perp-shapelength-diff
-          then writeCompareOp(perp-shapelength-diff(STR), COP2, Y) within Z ms
+          then (perp-shapelength-diff(STR) COP2 Y) within Z ms
           else 
             if PPS == perp-shapewidth-diff
-            then writeCompareOp(perp-shapewidth-diff(STR), COP2, Y) within Z ms
-            else writeCompareOp(IOU-ratio(STR), COP2, Y) within Z ms
+            then (perp-shapewidth-diff(STR) COP2 Y) within Z ms
+            else (IOU-ratio(STR) COP2 Y) within Z ms
             fi
           fi
         fi
       fi)
     ) /\ 
     perpIterAux(COP,X,PPS,COP2,Y,Z, STRs) .
-  
-  eq writeCompareOp(CEXP, COP, X) =
-    if COP == <
-    then CEXP < X
-    else
-      if COP == <=
-      then CEXP <= X
-      else 
-        if COP == >
-        then CEXP > X
-        else CEXP >= X
-        fi
-      fi
-    fi .
 endm

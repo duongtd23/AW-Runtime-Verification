@@ -29,7 +29,7 @@ fmod ENVIRONMENT is
 endfm
 
 mod AWSTATE is 
-  pr OBJECT-SET .
+  pr OBJECT-SET + ADS-MAP-SYNTAX .
   pr SET{String} .
   pr ENVIRONMENT + FLOAT-AND-NULL + VECTOR3-AND-NULL .
   sort AWState .
@@ -170,6 +170,7 @@ mod AWSTATE is
   eq gtPosition(AWST, STR) = nullVector3 [owise] .
   eq gtCenterPosition(AWST, STR) = nullVector3 [owise] .
   eq gtLinearVel(AWST, STR) = nullVector3 [owise] .
+  eq gtSpeed(AWST, STR) = nullFloat [owise] .
   eq gtRectOnCamera(AWST, STR) = DUMMY-RECT [owise] .
   eq gtYawAngleOrient(AWST, STR) = nullFloat [owise] .
   eq gtAccel(AWST, STR) = nullVector3 [owise] .
@@ -456,18 +457,6 @@ mod AWSTATE is
       backRightPoint(P, ANGLE, V, V2)
       frontRightPoint(P, ANGLE, V, V2)
       frontLeftPoint(P, ANGLE, V, V2) .
-
-  --- op ttc2 : AWState String -> Float .
-  --- ceq ttc2(AWST, STR) = 
-  ---    (if X <= 0.0
-  ---     then 1000000.0
-  ---     else (distanceIgnoreY(P,P2) - 4.5) / (SPEED - SPEED2)
-  ---     fi)
-  ---   if P  := gtPosition(AWST, "ego") /\
-  ---      P2 := gtPosition(AWST, STR) /\
-  ---      SPEED := gtSpeed(AWST, "ego") /\
-  ---      SPEED2 := gtSpeed(AWST, STR) /\
-  ---      X := SPEED - SPEED2 .
 endm
 
 mod UTILITIES is
@@ -510,8 +499,6 @@ mod UTILITIES is
        P2 := gtPosition(AWST, STR2) /\
        DLO := longitudeComp(vector3To2(P2 - P), ORI) .
   eq preciseLongDis(AWST, STR, STR2) = nullFloat [owise] .
-
-
 endm
 
 in model-checker .
@@ -519,8 +506,14 @@ in model-checker .
 mod PROPOSITIONS is
   pr UTILITIES .
   inc SATISFACTION .
+  inc MODEL-CHECKER .
+  inc LTL-SIMPLIFIER .
+
   subsort AWState < State .
-  sort ComparableExp .
+  sorts ComparisonOp ComparableExp .
+
+  ops < > <= >= == : -> ComparisonOp [ctor] .
+  op ___ : ComparableExp ComparisonOp FloatOrInt -> Formula .
 
   var OBJs : Set{Object} .
   vars POSE POSE2 : Pose .
@@ -530,11 +523,15 @@ mod PROPOSITIONS is
   vars STR STR2 : String .
   vars AWST : AWState .
   var PROP : Prop .
+  vars COP COP2 : ComparisonOp .
 
-  op _<_ : ComparableExp FloatOrInt -> Prop .
-  op _>_ : ComparableExp FloatOrInt -> Prop .
-  op _<=_ : ComparableExp FloatOrInt -> Prop .
-  op _>=_ : ComparableExp FloatOrInt -> Prop .
+  op compare : Maybe{FloatOrInt} ComparisonOp FloatOrInt -> Bool .
+  eq compare(X, <, Y) = (X < Y) .
+  eq compare(X, >, Y) = (X > Y) .
+  eq compare(X, <=, Y) = (X <= Y) .
+  eq compare(X, >=, Y) = (X >= Y) .
+  eq compare(X, ==, Y) = (X == Y) .
+  eq compare(nullFloat, COP, Y) = false .
 
   op timeStamp : -> ComparableExp .
 
@@ -558,129 +555,60 @@ mod PROPOSITIONS is
   --- 2D bounding box on camera screen view
   op IOU-ratio : String -> ComparableExp .
 
-  ceq AWST |= timeStamp < T = true
-    if timeStamp(AWST) < T .
-  ceq AWST |= timeStamp > T = true
-    if timeStamp(AWST) > T .
-  ceq AWST |= timeStamp <= T = true
-    if timeStamp(AWST) <= T .
-  ceq AWST |= timeStamp >= T = true
-    if timeStamp(AWST) >= T .
+  --- distance to a point
+  op distance : String Vector3 -> ComparableExp .
 
-  ceq AWST |= speed(STR) < X = true
-    if gtSpeed(AWST, STR) < X .
-  ceq AWST |= speed(STR) > X = true
-    if gtSpeed(AWST, STR) > X .
-  ceq AWST |= speed(STR) <= X = true
-    if gtSpeed(AWST, STR) <= X .
-  ceq AWST |= speed(STR) >= X = true
-    if gtSpeed(AWST, STR) >= X .
+  ceq AWST |= timeStamp COP T = true
+    if compare(timeStamp(AWST), COP, T) .
 
-  ceq AWST |= accelScalar(STR) < X = true
-    if gtAccelScalar(AWST, STR) < X .
-  ceq AWST |= accelScalar(STR) > X = true
-    if gtAccelScalar(AWST, STR) > X .
-  ceq AWST |= accelScalar(STR) <= X = true
-    if gtAccelScalar(AWST, STR) <= X .
-  ceq AWST |= accelScalar(STR) >= X = true
-    if gtAccelScalar(AWST, STR) >= X .
+  ceq AWST |= speed(STR) COP X = true
+    if compare(gtSpeed(AWST, STR), COP, X) .
 
-  ceq AWST |= pos-diff(STR, STR2) < X = true
-    if magnitudeIgnoreY(pos-diff(AWST, STR, STR2)) < X .
-  ceq AWST |= pos-diff(STR, STR2) > X = true
-    if magnitudeIgnoreY(pos-diff(AWST, STR, STR2)) > X .
-  ceq AWST |= pos-diff(STR, STR2) <= X = true
-    if magnitudeIgnoreY(pos-diff(AWST, STR, STR2)) <= X .
-  ceq AWST |= pos-diff(STR, STR2) >= X = true
-    if magnitudeIgnoreY(pos-diff(AWST, STR, STR2)) >= X .
+  ceq AWST |= accelScalar(STR) COP X = true
+    if compare(gtAccelScalar(AWST, STR), COP, X) .
 
-  ceq AWST |= precise-long-dis(STR, STR2) < X = true
-    if preciseLongDis(AWST, STR, STR2) < X .
-  ceq AWST |= precise-long-dis(STR, STR2) > X = true
-    if preciseLongDis(AWST, STR, STR2) > X .
-  ceq AWST |= precise-long-dis(STR, STR2) <= X = true
-    if preciseLongDis(AWST, STR, STR2) <= X .
-  ceq AWST |= precise-long-dis(STR, STR2) >= X = true
-    if preciseLongDis(AWST, STR, STR2) >= X .
+  ceq AWST |= pos-diff(STR, STR2) COP X = true
+    if compare(magnitudeIgnoreY(pos-diff(AWST, STR, STR2)), COP, X) .
 
-  ceq AWST |= perp-pos-diff(STR) < X = true
-    if magnitudeIgnoreY(perp-pos-diff(AWST, STR)) < X .
-  ceq AWST |= perp-pos-diff(STR) > X = true
-    if magnitudeIgnoreY(perp-pos-diff(AWST, STR)) > X .
-  ceq AWST |= perp-pos-diff(STR) <= X = true
-    if magnitudeIgnoreY(perp-pos-diff(AWST, STR)) <= X .
-  ceq AWST |= perp-pos-diff(STR) >= X = true
-    if magnitudeIgnoreY(perp-pos-diff(AWST, STR)) >= X .
+  ceq AWST |= precise-long-dis(STR, STR2) COP X = true
+    if compare(preciseLongDis(AWST, STR, STR2), COP, X) .
+
+  ceq AWST |= perp-pos-diff(STR) COP X = true
+    if compare(magnitudeIgnoreY(perp-pos-diff(AWST, STR)), COP, X) .
   
-  ceq AWST |= perp-rota-diff(STR) < X = true
-    if perp-rota-diff(AWST, STR) < X .
-  ceq AWST |= perp-rota-diff(STR) > X = true
-    if perp-rota-diff(AWST, STR) > X .
-  ceq AWST |= perp-rota-diff(STR) <= X = true
-    if perp-rota-diff(AWST, STR) <= X .
-  ceq AWST |= perp-rota-diff(STR) >= X = true
-    if perp-rota-diff(AWST, STR) >= X .
+  ceq AWST |= perp-rota-diff(STR) COP X = true
+    if compare(perp-rota-diff(AWST, STR), COP, X) .
 
-  ceq AWST |= perp-speed-diff(STR) < X = true
-    if perp-speed-diff(AWST, STR) < X .
-  ceq AWST |= perp-speed-diff(STR) > X = true
-    if perp-speed-diff(AWST, STR) > X .
-  ceq AWST |= perp-speed-diff(STR) <= X = true
-    if perp-speed-diff(AWST, STR) <= X .
-  ceq AWST |= perp-speed-diff(STR) >= X = true
-    if perp-speed-diff(AWST, STR) >= X .
+  ceq AWST |= perp-speed-diff(STR) COP X = true
+    if compare(perp-speed-diff(AWST, STR), COP, X) .
 
-  ceq AWST |= perp-shapelength-diff(STR) < X = true
-    if perp-shapelength-diff(AWST, STR) < X .
-  ceq AWST |= perp-shapelength-diff(STR) > X = true
-    if perp-shapelength-diff(AWST, STR) > X .
-  ceq AWST |= perp-shapelength-diff(STR) <= X = true
-    if perp-shapelength-diff(AWST, STR) <= X .
-  ceq AWST |= perp-shapelength-diff(STR) >= X = true
-    if perp-shapelength-diff(AWST, STR) >= X .
+  ceq AWST |= perp-shapelength-diff(STR) COP X = true
+    if compare(perp-shapelength-diff(AWST, STR), COP, X) .
 
-  ceq AWST |= perp-shapewidth-diff(STR) < X = true
-    if perp-shapewidth-diff(AWST, STR) < X .
-  ceq AWST |= perp-shapewidth-diff(STR) > X = true
-    if perp-shapewidth-diff(AWST, STR) > X .
-  ceq AWST |= perp-shapewidth-diff(STR) <= X = true
-    if perp-shapewidth-diff(AWST, STR) <= X .
-  ceq AWST |= perp-shapewidth-diff(STR) >= X = true
-    if perp-shapewidth-diff(AWST, STR) >= X .
+  ceq AWST |= perp-shapewidth-diff(STR) COP X = true
+    if compare(perp-shapewidth-diff(AWST, STR), COP, X) .
 
-  ceq AWST |= IOU-ratio(STR) > X = true
-    if best-IOU-ratio(AWST, STR) > X .
-  ceq AWST |= IOU-ratio(STR) >= X = true
-    if best-IOU-ratio(AWST, STR) >= X .
+  ceq AWST |= IOU-ratio(STR) COP X = true
+    if compare(best-IOU-ratio(AWST, STR), COP, X) .
 
-  ceq AWST |= ttc(STR) > X = true
-    if ttc(AWST, STR) > X .
-  ceq AWST |= ttc(STR) >= X = true
-    if ttc(AWST, STR) >= X .
-  ceq AWST |= ttc(STR) < X = true
-    if ttc(AWST, STR) < X .
-  ceq AWST |= ttc(STR) <= X = true
-    if ttc(AWST, STR) <= X .
+  ceq AWST |= ttc(STR) COP X = true
+    if compare(ttc(AWST, STR), COP, X) .
 
-  ceq AWST |= thw(STR) > X = true
-    if thw(AWST, STR) > X .
-  ceq AWST |= thw(STR) >= X = true
-    if thw(AWST, STR) >= X .
-  ceq AWST |= thw(STR) < X = true
-    if thw(AWST, STR) < X .
-  ceq AWST |= thw(STR) <= X = true
-    if thw(AWST, STR) <= X .
+  ceq AWST |= thw(STR) COP X = true
+    if compare(thw(AWST, STR), COP, X) .
 
   ceq AWST |= collision(STR, STR2) = true
     if collision(AWST, STR, STR2) .
+  
+  ceq AWST |= distance(STR, P2) COP X = true
+    if P := gtPosition(AWST, STR) /\
+       compare(distanceIgnoreY(P, P2), COP, X) .
   
   eq T # {OBJs} |= PROP = false [owise] .
 endm
 
 mod FORMULAS is
   inc PROPOSITIONS .
-  inc MODEL-CHECKER .
-  inc LTL-SIMPLIFIER .
 
   op next : Formula Nat -> Formula .
   op nextIterAux : Nat Formula -> Formula .

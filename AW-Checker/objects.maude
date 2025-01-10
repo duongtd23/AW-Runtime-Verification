@@ -288,3 +288,61 @@ endv
 fmod OBJECT-SET is
   pr SET{Object} .
 endfm
+
+fmod TRAFFIC-LANE is
+  pr LIST{Vector3} .
+  pr LIST{String} .
+
+  sort TrafficLane .
+  op _|_|_|_ : String List{String} List{String} List{Vector3} -> TrafficLane [ctor] .
+
+  op getName : TrafficLane -> String .
+  op getWaypoints : TrafficLane -> List{Vector3} .
+
+  vars STR : String .
+  vars SS SS2 : List{String} .
+  vars WPS : List{Vector3} .
+
+  eq getName(STR | SS | SS2 | WPS) = STR .
+  eq getWaypoints(STR | SS | SS2 | WPS) = WPS .
+endfm
+
+view TrafficLane from TRIV to TRAFFIC-LANE is
+  sort Elt to TrafficLane .
+endv
+
+fmod ADS-MAP-SYNTAX is
+  pr SET{TrafficLane} .
+
+  op mapName : -> String .
+  op trafficLanes : -> Set{TrafficLane} .
+
+  vars L L2 : TrafficLane .
+  vars LS : Set{TrafficLane} .
+  vars STR STR2 : String .
+  vars X Y Z : FloatOrInt .
+  vars P P2 : Vector3 .
+  vars WPS : List{Vector3} .
+  vars I I2 : Int .
+  
+  op getLane : String -> [TrafficLane] .
+  ceq getLane(STR) = L
+    if L , LS := trafficLanes /\
+       getName(L) == STR .
+
+  --- lane & offset position
+  op _at_ : String FloatOrInt -> [Vector3] .
+  op laneOffsetToVector : Vector3 Vector3 List{Vector3} FloatOrInt -> Vector3 .
+  ceq STR at X = laneOffsetToVector(P, P2, WPS, X) 
+    if P P2 WPS := getWaypoints(getLane(STR)) .
+  ceq laneOffsetToVector(P, P2, WPS, X) = 
+      if Y < X
+      then 
+        if WPS == nil
+        then P2
+        else laneOffsetToVector(P2, head(WPS), tail(WPS), X + -1.0 * Y)
+        fi
+      else X * normalize(ignoreY(P2 - P)) + ignoreY(P)
+      fi 
+    if Y := distanceIgnoreY(P,P2) .
+endfm

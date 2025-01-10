@@ -128,10 +128,12 @@ fmod VECTOR3 is
 
   op _-_ : Vector3 Vector3 -> Vector3 [prec 33 gather (E e)] .
   op _+_ : Vector3 Vector3 -> Vector3 [assoc comm prec 33] .
+  op _*_ : FloatOrInt Vector3 -> Vector3 [prec 31] .
   op magnitude : Vector3 -> Float .
   op distance : Vector3 Vector3 -> Float .
   op magnitudeIgnoreY : Vector3 -> Float .
   op distanceIgnoreY : Vector3 Vector3 -> Float .
+  op ignoreY : Vector3 -> Vector3 .
   op normalize : Vector3 -> Vector3 .
   op dot : Vector3 Vector3 -> Float .
   ops x y z : Vector3 -> FloatOrInt .
@@ -143,11 +145,13 @@ fmod VECTOR3 is
   eq z(X Y Z) = Z .
   eq ((X Y Z) + (X2 Y2 Z2)) = (X + X2) (Y + Y2) (Z + Z2) .
   eq ((X Y Z) - (X2 Y2 Z2)) = (X - X2) (Y - Y2) (Z - Z2) .
+  eq (S * (X Y Z)) = (S * X  S * Y  S * Z) .
   eq dot((X Y Z) , (X2 Y2 Z2)) = (X * X2) + (Y * Y2) + (Z * Z2) .
   eq magnitude(X Y Z) = sqrt(X * X + Y * Y + Z * Z) .
   eq distance(V, V2) = magnitude(V - V2) .
   eq magnitudeIgnoreY(X Y Z) = sqrt(X * X + Z * Z) .
   eq distanceIgnoreY(V, V2) = magnitudeIgnoreY(V - V2) .
+  eq ignoreY(X Y Z) = (X 0 Z) .
   ceq normalize(X Y Z) = (X / S) (Y / S) (Z / S) 
     if S := magnitude(X Y Z) .
 endfm
@@ -160,23 +164,14 @@ view FloatOrInt from TRIV to FLOAT-OR-INT is
 endv
 fmod FLOAT-AND-NULL is
   pr MAYBE{FloatOrInt} * (op maybe{FloatOrInt} to nullFloat) .
-  op _<_ : Maybe{FloatOrInt} FloatOrInt -> Bool [ditto] .
-  op _>_ : Maybe{FloatOrInt} FloatOrInt -> Bool [ditto] .
-  op _<=_ : Maybe{FloatOrInt} FloatOrInt -> Bool [ditto] .
-  op _>=_ : Maybe{FloatOrInt} FloatOrInt -> Bool [ditto] .
-
-  vars FI FI2 : FloatOrInt .
-  eq nullFloat < FI = false .
-  eq nullFloat > FI = false .
-  eq nullFloat <= FI = false .
-  eq nullFloat >= FI = false .
 endfm
 
 fmod VECTOR3-AND-NULL is
   pr FLOAT-AND-NULL .
   pr MAYBE{Vector3} * (op maybe{Vector3} to nullVector3) .
-  op magnitude : Maybe{Vector3} -> Maybe{FloatOrInt} .
+  ops magnitude magnitudeIgnoreY : Maybe{Vector3} -> Maybe{FloatOrInt} .
   eq magnitude(nullVector3) = nullFloat .
+  eq magnitudeIgnoreY(nullVector3) = nullFloat .
 endfm
 
 

@@ -8,6 +8,8 @@ The traces of our experiments are in the [Traces folder](Traces).
 
 The extended AWSIM-Labs and AWSIM-Script can be found at: https://github.com/duongtd23/AWSIM-Labs/tree/awsim-script.
 
+The language grammar of AWSIM-Script and the Experimental results of the second run are reported in PDF files `AWSIM-Script-Language-Grammar` and `Second-Run-Report`, respectively.
+
 ## Demonstration of some collisions
 
 Below are demonstrations of some collision and non-collision cases from our experiments.
